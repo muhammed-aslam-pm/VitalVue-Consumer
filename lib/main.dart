@@ -15,6 +15,7 @@ import 'cloud/band_vitals_api.dart';
 import 'protocol/jstyle_codec.dart';
 import 'ui/pages/band_monitor_page.dart';
 import 'ui/pages/login_page.dart';
+import 'background/background_service.dart';
 
 // ── Configuration — edit these or pass via --dart-define ─────────────────────
 const _kApiBaseUrl = String.fromEnvironment(
@@ -34,8 +35,9 @@ const _kPersonalInfo = PersonalInfo(
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeBackgroundService();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,

@@ -61,4 +61,27 @@ class PatientProfile {
       departmentName: json['department_name'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'full_name': fullName,
+      'role': role,
+      'organization_id': organizationId,
+      'phone_number': phoneNumber,
+      'age': age,
+      'gender': gender,
+      'height': height,
+      'weight': weight,
+      'blood_group': bloodGroup,
+      'alt_phone': altPhone,
+      'device_id': deviceId,
+      'nurse_id': nurseId,
+      'doctor_name': doctorName,
+      'room_number': roomNumber,
+      'ward_name': wardName,
+      'department_name': departmentName,
+    };
+  }
 }

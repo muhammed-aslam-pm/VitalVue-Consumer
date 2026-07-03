@@ -17,7 +17,7 @@ dependencies:
   flutter_blue_plus: ^1.35.5
 
   # Permissions
-  permission_handler: ^11.3.1
+  permission_handler: ^12.0.3
 
   # State Management
   flutter_bloc: ^8.1.6
@@ -34,6 +34,9 @@ dependencies:
   # Utilities
   intl: ^0.19.0
   flutter_secure_storage: ^9.0.0
+  flutter_background_service: ^5.1.0
+  flutter_local_notifications: ^22.0.1
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

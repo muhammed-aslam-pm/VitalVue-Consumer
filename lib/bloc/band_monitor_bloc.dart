@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
+import 'package:flutter_background_service/flutter_background_service.dart';
+
 import '../ble/band_ble_client.dart';
 import '../cloud/band_vitals_api.dart';
 import '../protocol/jstyle_codec.dart';
@@ -74,6 +76,38 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
         emit(BandConnectedState(s));
       }
     });
+
+    // Listen to background service updates
+    _bgSub = FlutterBackgroundService().on('vitals_update').listen((data) {
+      if (data == null) return;
+      
+      BleConnectionStatus status;
+      if (data['status'] == BleConnectionStatus.connected.name) {
+        status = BleConnectionStatus.connected;
+      } else if (data['status'] == BleConnectionStatus.connecting.name) {
+        status = BleConnectionStatus.connecting;
+      } else {
+        status = BleConnectionStatus.disconnected;
+      }
+
+      final state = BandState(
+        connectionStatus: status,
+        hr: data['hr'] as int? ?? 0,
+        spo2: data['spo2'] as int? ?? 0,
+        tempC: (data['tempC'] as num?)?.toDouble() ?? 0.0,
+        systolic: data['bpSys'] as int?,
+        diastolic: data['bpDia'] as int?,
+        hrv: data['hrv'] as int?,
+        stress: data['stress'] as int?,
+        steps: data['steps'] as int? ?? 0,
+        calories: (data['calories'] as num?)?.toDouble() ?? 0.0,
+        distanceKm: (data['distanceKm'] as num?)?.toDouble() ?? 0.0,
+        battery: data['battery'] as int? ?? -1,
+        isRemoved: data['isRemoved'] as bool? ?? false,
+      );
+      
+      if (!isClosed) add(_BandStateUpdated(state));
+    });
   }
 
   final BandVitalsApi _vitalsApi;
@@ -81,8 +115,7 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
   final String _deviceId;
   PersonalInfo _personalInfo;
 
-  BandSessionService? _session;
-  StreamSubscription<BandState>? _stateSub;
+  StreamSubscription<Map<String, dynamic>?>? _bgSub;
   StreamSubscription<ScanResult>? _scanSub;
 
   // ── Scan ──────────────────────────────────────────────────────────────────
@@ -127,70 +160,31 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
     await BandBleClient.stopScan();
 
     emit(BandConnectingState(event.device.platformName));
-    await _teardownSession();
-
-    _session = BandSessionService(
-      patientId: _patientId,
-      deviceId: _deviceId,
-      personalInfo: _personalInfo,
-      onIngest: (s) => _vitalsApi.ingest(
-        patientId: _patientId,
-        deviceId: _deviceId,
-        hr: s.hr,
-        spo2: s.spo2,
-        tempC: s.tempC,
-        bpSys: s.systolic ?? 0,
-        bpDia: s.diastolic ?? 0,
-        hrv: s.hrv ?? 0,
-        stress: (s.stress ?? 0).toString(),
-        steps: s.steps,
-        calories: s.calories,
-        distanceKm: s.distanceKm,
-        battery: s.battery,
-        isRemoved: s.isRemoved,
-      ),
-    );
-
-    final connected = await _session!.connect(event.device);
-
-    if (!connected) {
-      await _teardownSession();
-      emit(const BandDisconnectedState(reason: 'Connection failed'));
-      return;
+    
+    final service = FlutterBackgroundService();
+    if (!await service.isRunning()) {
+      await service.startService();
     }
-
-    // ✅ Correct pattern: subscribe → add() internal events.
-    // The _onConnect handler returns immediately after this; ongoing state
-    // changes flow through _BandStateUpdated events handled by their own handler.
-    _stateSub = _session!.stateStream.listen((s) {
-      if (!isClosed) add(_BandStateUpdated(s));
+    
+    service.invoke('connectDevice', {
+      'remote_id': event.device.remoteId.str,
+      'device_id': _deviceId,
     });
-
-    // Emit the initial connected snapshot synchronously — still inside handler.
-    emit(BandConnectedState(_session!.currentState));
   }
 
   // ── Disconnect ────────────────────────────────────────────────────────────
 
   Future<void> _onDisconnect(
       DisconnectBand _, Emitter<BandMonitorState> emit) async {
-    await _teardownSession();
+    FlutterBackgroundService().invoke('stopService');
     emit(const BandDisconnectedState());
   }
 
   // ── Cleanup ───────────────────────────────────────────────────────────────
 
-  Future<void> _teardownSession() async {
-    await _stateSub?.cancel();
-    _stateSub = null;
-    await _session?.disconnect();
-    _session?.dispose();
-    _session = null;
-  }
-
   @override
   Future<void> close() async {
-    await _teardownSession();
+    await _bgSub?.cancel();
     await _scanSub?.cancel();
     return super.close();
   }

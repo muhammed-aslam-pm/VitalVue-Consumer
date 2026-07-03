@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../auth/auth_repository.dart';
 import '../auth/auth_token_store.dart';
+import '../background/background_preferences.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
@@ -41,6 +42,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (hasToken && token != null) {
       try {
         final profile = await _repo.getProfile(token);
+        await BackgroundPreferences.saveProfile(profile);
         emit(AuthAuthenticated(profile));
       } catch (e) {
         // If profile fetch fails on startup (e.g., token expired and refresh failed),
@@ -81,6 +83,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (token == null) throw const AuthException('Token missing after login');
       
       final profile = await _repo.getProfile(token);
+      await BackgroundPreferences.saveProfile(profile);
       emit(AuthAuthenticated(profile));
     } on AuthException catch (e) {
       emit(AuthError(

@@ -12,7 +12,7 @@ const _spo2KickIntervalS = 120; // SpO2 spot-check every 120s
 const _spo2KickDurationS = 45; // SpO2 PPG window
 const _spo2SuppressWindowS = _spo2KickDurationS + 30; // suppress watchdog during PPG
 const _bpKickIntervalS = 300; // BP/HRV kick every 300s
-const _ingestIntervalS = 20; // cloud ingest every 20s
+const _ingestIntervalS = 60; // cloud ingest every 60s
 const _loopTickS = 2; // main loop tick
 
 // ── Band state value object ───────────────────────────────────────────────────
@@ -134,10 +134,15 @@ class BandSessionService {
 
   StreamSubscription<Uint8List>? _notifySub;
   StreamSubscription<BluetoothConnectionState>? _connStateSub;
+  
+  BluetoothDevice? _device;
+  bool _isAutoReconnecting = false;
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
   Future<bool> connect(BluetoothDevice device) async {
+    _device = device;
+    _isAutoReconnecting = false;
     _emit(_state.copyWith(connectionStatus: BleConnectionStatus.connecting));
 
     final ok = await _ble.connect(device);
@@ -187,6 +192,8 @@ class BandSessionService {
   }
 
   Future<void> disconnect() async {
+    _isAutoReconnecting = false;
+    _device = null;
     _cancelTimers();
     await _notifySub?.cancel();
     await _connStateSub?.cancel();
@@ -377,6 +384,53 @@ class BandSessionService {
   void _handleDisconnect() {
     _cancelTimers();
     _emit(_state.copyWith(connectionStatus: BleConnectionStatus.disconnected));
+    
+    if (_device != null && !_isAutoReconnecting) {
+      _startAutoReconnect();
+    }
+  }
+
+  void _startAutoReconnect() async {
+    _isAutoReconnecting = true;
+    while (_isAutoReconnecting && _device != null) {
+      debugPrint('[$deviceId] Attempting auto-reconnect...');
+      _emit(_state.copyWith(connectionStatus: BleConnectionStatus.connecting));
+      
+      final connected = await _ble.connect(_device!);
+      if (connected) {
+        debugPrint('[$deviceId] Auto-reconnect successful!');
+        
+        _emit(_state.copyWith(
+          connectionStatus: BleConnectionStatus.connected,
+          clearError: true,
+        ));
+        
+        // Subscribe to GATT notifications again
+        await _notifySub?.cancel();
+        _notifySub = _ble.notifyStream.listen(_onNotify);
+        
+        await Future.delayed(const Duration(seconds: 1));
+        await _initSequence();
+        
+        _lastKickTime = DateTime.now();
+        _lastBpKickTime = DateTime.now();
+        _lastValidHrTime = DateTime.now();
+        
+        _mainLoopTimer = Timer.periodic(
+          const Duration(seconds: _loopTickS),
+          (_) => _tick(),
+        );
+        _ingestTimer = Timer.periodic(
+          const Duration(seconds: _ingestIntervalS),
+          (_) => _runIngest(),
+        );
+        _isAutoReconnecting = false;
+        return;
+      }
+      
+      debugPrint('[$deviceId] Auto-reconnect failed. Retrying in 5 seconds...');
+      await Future.delayed(const Duration(seconds: 5));
+    }
   }
 
   void _cancelTimers() {

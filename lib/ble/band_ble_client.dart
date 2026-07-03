@@ -68,6 +68,7 @@ class BandBleClient {
 
     // Subscribe to notifications — mirrors Python: client.start_notify(NOTIFY_CHAR, _cb)
     await _notifyChar!.setNotifyValue(true);
+    await _notifySub?.cancel();
     _notifySub = _notifyChar!.lastValueStream.listen((raw) {
       if (raw.isNotEmpty) {
         _notifyController.add(Uint8List.fromList(raw));

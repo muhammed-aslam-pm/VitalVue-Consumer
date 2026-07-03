@@ -47,10 +47,12 @@ class _BandMonitorPageState extends State<BandMonitorPage>
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
       Permission.locationWhenInUse,
+      Permission.notification,
+      Permission.ignoreBatteryOptimizations,
     ].request();
 
-    final allGranted = statuses.values.every(
-        (s) => s == PermissionStatus.granted || s == PermissionStatus.limited);
+    final allGranted = statuses[Permission.bluetoothScan] == PermissionStatus.granted &&
+                       statuses[Permission.bluetoothConnect] == PermissionStatus.granted;
 
     if (!allGranted) {
       if (context.mounted) {
