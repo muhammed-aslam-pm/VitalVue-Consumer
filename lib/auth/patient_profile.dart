@@ -50,7 +50,7 @@ class PatientProfile {
       age: (json['age'] as num?)?.toInt() ?? 30, // Fallback if missing
       gender: json['gender'] as String? ?? 'Male',
       height: (json['height'] as num?)?.toInt() ?? 170, // Fallback for SDK
-      weight: (json['weight'] as num?)?.toInt() ?? 70,  // Fallback for SDK
+      weight: (json['weight'] as num?)?.toInt() ?? 70, // Fallback for SDK
       bloodGroup: json['blood_group'] as String?,
       altPhone: json['alt_phone'] as String?,
       deviceId: json['device_id'] as String?,

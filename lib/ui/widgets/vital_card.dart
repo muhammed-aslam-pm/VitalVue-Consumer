@@ -81,35 +81,39 @@ class VitalCard extends StatelessWidget {
               ),
               const Spacer(),
               // Value
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    value,
-                    style: TextStyle(
-                      color: isAlert ? const Color(0xFFFF6B6B) : Colors.white,
-                      fontSize: 42,
-                      fontWeight: FontWeight.w800,
-                      height: 1.0,
-                      letterSpacing: -1,
-                    ),
-                  )
-                      .animate(key: ValueKey(value))
-                      .fadeIn(duration: 250.ms)
-                      .slideY(begin: 0.15, end: 0, duration: 250.ms),
-                  const SizedBox(width: 6),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      unit,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      value,
                       style: TextStyle(
-                        color: accentColor.withValues(alpha: 0.85),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        color: isAlert ? const Color(0xFFFF6B6B) : Colors.white,
+                        fontSize: 42,
+                        fontWeight: FontWeight.w800,
+                        height: 1.0,
+                        letterSpacing: -1,
+                      ),
+                    )
+                        .animate(key: ValueKey(value))
+                        .fadeIn(duration: 250.ms)
+                        .slideY(begin: 0.15, end: 0, duration: 250.ms),
+                    const SizedBox(width: 6),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        unit,
+                        style: TextStyle(
+                          color: accentColor.withValues(alpha: 0.85),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 4),

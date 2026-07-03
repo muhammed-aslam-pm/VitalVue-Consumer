@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 /// BLE transport layer — Dart translation of Python ble_transport.py.
@@ -46,36 +47,38 @@ class BandBleClient {
   /// Connect to [device] and subscribe to the fff7 notify characteristic.
   Future<bool> connect(BluetoothDevice device) async {
     _device = device;
-    await device.connect(autoConnect: false, timeout: const Duration(seconds: 15));
-    if (!device.isConnected) return false;
+    try {
+      await device.connect(autoConnect: false, timeout: const Duration(seconds: 15));
+      if (!device.isConnected) return false;
 
-    // Discover services.
-    final services = await device.discoverServices();
-    for (final svc in services) {
-      if (svc.serviceUuid.toString().toLowerCase().contains('fff0')) {
-        for (final char in svc.characteristics) {
-          final uuid = char.characteristicUuid.toString().toLowerCase();
-          if (uuid.contains('fff6')) _writeChar = char;
-          if (uuid.contains('fff7')) _notifyChar = char;
+      // Discover services.
+      final services = await device.discoverServices();
+      for (final svc in services) {
+        if (svc.serviceUuid.toString().toLowerCase().contains('fff0')) {
+          for (final char in svc.characteristics) {
+            final uuid = char.characteristicUuid.toString().toLowerCase();
+            if (uuid.contains('fff6')) _writeChar = char;
+            if (uuid.contains('fff7')) _notifyChar = char;
+          }
         }
       }
-    }
 
-    if (_writeChar == null || _notifyChar == null) {
-      await device.disconnect();
+      if (_notifyChar == null || _writeChar == null) return false;
+
+      // Subscribe to notify char.
+      await _notifyChar!.setNotifyValue(true);
+      
+      // Cancel any existing subscription to prevent duplicate streams.
+      await _notifySub?.cancel();
+      _notifySub = _notifyChar!.onValueReceived.listen((data) {
+        if (data.isNotEmpty) _notifyController.add(Uint8List.fromList(data));
+      });
+
+      return true;
+    } catch (e) {
+      debugPrint('[BandBleClient] Connection failed: $e');
       return false;
     }
-
-    // Subscribe to notifications — mirrors Python: client.start_notify(NOTIFY_CHAR, _cb)
-    await _notifyChar!.setNotifyValue(true);
-    await _notifySub?.cancel();
-    _notifySub = _notifyChar!.lastValueStream.listen((raw) {
-      if (raw.isNotEmpty) {
-        _notifyController.add(Uint8List.fromList(raw));
-      }
-    });
-
-    return true;
   }
 
   /// Write [data] to fff6 without waiting for a response.
