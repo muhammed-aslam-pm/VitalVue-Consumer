@@ -1,0 +1,156 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import 'auth/auth_interceptor.dart';
+import 'auth/auth_repository.dart';
+import 'auth/auth_token_store.dart';
+import 'bloc/auth_bloc.dart';
+import 'bloc/auth_event.dart';
+import 'bloc/auth_state.dart';
+import 'bloc/band_monitor_bloc.dart';
+import 'cloud/band_vitals_api.dart';
+import 'protocol/jstyle_codec.dart';
+import 'ui/pages/band_monitor_page.dart';
+import 'ui/pages/login_page.dart';
+
+// ── Configuration — edit these or pass via --dart-define ─────────────────────
+const _kApiBaseUrl = String.fromEnvironment(
+  'BAND_API_URL',
+  defaultValue: 'https://vitalvue-api.genesysailabs.com',
+);
+const _kPatientId = int.fromEnvironment('PATIENT_ID', defaultValue: 1);
+const _kDeviceId =
+    String.fromEnvironment('DEVICE_ID', defaultValue: 'jband-dev-01');
+const _kPersonalInfo = PersonalInfo(
+  sex: 1,
+  age: 30,
+  heightCm: 175,
+  weightKg: 70,
+  stepLengthCm: 70,
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+  ));
+  runApp(const JBandMonitorApp());
+}
+
+class JBandMonitorApp extends StatefulWidget {
+  const JBandMonitorApp({super.key});
+
+  @override
+  State<JBandMonitorApp> createState() => _JBandMonitorAppState();
+}
+
+class _JBandMonitorAppState extends State<JBandMonitorApp> {
+  // ── Singletons created once ───────────────────────────────────────────────
+  late final AuthTokenStore _tokenStore;
+  late final AuthRepository _authRepo;
+  late final AuthBloc _authBloc;
+  late final AuthInterceptor _authInterceptor;
+  late final BandVitalsApi _vitalsApi;
+  late final BandMonitorBloc _bandBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _tokenStore = AuthTokenStore();
+    _authRepo = AuthRepository(baseUrl: _kApiBaseUrl, store: _tokenStore);
+
+    _authBloc = AuthBloc(repository: _authRepo, store: _tokenStore);
+
+    _authInterceptor = AuthInterceptor(
+      store: _tokenStore,
+      repository: _authRepo,
+      // When the refresh token is also expired, force the user back to login.
+      onLogout: () => _authBloc.forceLogout(),
+    );
+
+    _vitalsApi = BandVitalsApi(
+      baseUrl: _kApiBaseUrl,
+      authInterceptor: _authInterceptor,
+    );
+
+    _bandBloc = BandMonitorBloc(
+      vitalsApi: _vitalsApi,
+      patientId: _kPatientId,
+      deviceId: _kDeviceId,
+      personalInfo: _kPersonalInfo,
+    );
+
+    // Check for persisted token on startup.
+    _authBloc.add(const AuthCheckStatus());
+  }
+
+  @override
+  void dispose() {
+    _authBloc.close();
+    _bandBloc.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider.value(value: _authBloc),
+        BlocProvider.value(value: _bandBloc),
+      ],
+      child: MaterialApp(
+        title: 'JBand Monitor',
+        debugShowCheckedModeBanner: false,
+        theme: _buildTheme(),
+        home: BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, state) {
+            return switch (state) {
+              AuthAuthenticated() => const BandMonitorPage(),
+              AuthInitial()      => const _SplashScreen(),
+              _                  => const LoginPage(),
+            };
+          },
+        ),
+      ),
+    );
+  }
+
+  ThemeData _buildTheme() {
+    return ThemeData(
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: const Color(0xFF0F1117),
+      colorScheme: const ColorScheme.dark(
+        primary: Color(0xFF1A73E8),
+        secondary: Color(0xFF00BFA5),
+        surface: Color(0xFF1A1D27),
+        error: Color(0xFFE53935),
+      ),
+      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+      useMaterial3: true,
+    );
+  }
+}
+
+// ── Splash shown for the <100 ms token-check ─────────────────────────────────
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFF0F1117),
+      body: Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF1A73E8),
+          strokeWidth: 2,
+        ),
+      ),
+    );
+  }
+}

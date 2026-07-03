@@ -1,0 +1,44 @@
+name: jband_monitor
+description: "JStyle JCV5 smartband BLE monitor — replaces the Raspberry Pi gateway."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # BLE
+  flutter_blue_plus: ^1.35.5
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # State Management
+  flutter_bloc: ^8.1.6
+  bloc: ^8.1.4
+  equatable: ^2.0.5
+
+  # Networking
+  dio: ^5.7.0
+
+  # UI
+  flutter_animate: ^4.5.2
+  google_fonts: ^6.2.1
+
+  # Utilities
+  intl: ^0.19.0
+  flutter_secure_storage: ^9.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
