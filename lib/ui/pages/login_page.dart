@@ -109,7 +109,7 @@ class _LoginPageState extends State<LoginPage> {
             .fadeIn(duration: 400.ms),
         const SizedBox(height: 20),
         Text(
-          'JBand Monitor',
+          'VitalVue Consumer',
           style: GoogleFonts.inter(
             color: Colors.white,
             fontSize: 28,

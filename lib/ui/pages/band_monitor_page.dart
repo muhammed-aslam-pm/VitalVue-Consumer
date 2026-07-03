@@ -159,7 +159,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'JBand Monitor',
+                'VitalVue Consumer',
                 style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 26,

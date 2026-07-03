@@ -19,7 +19,8 @@ Future<void> initializeBackgroundService() async {
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
     'jband_monitor_service',
     'JBand Monitoring Service',
-    description: 'Keeps the BLE connection and vital sync alive in the background.',
+    description:
+        'Keeps the BLE connection and vital sync alive in the background.',
     importance: Importance.low,
   );
 
@@ -45,7 +46,7 @@ Future<void> initializeBackgroundService() async {
       autoStart: false,
       isForegroundMode: true,
       notificationChannelId: 'jband_monitor_service',
-      initialNotificationTitle: 'JBand Monitor',
+      initialNotificationTitle: 'VitalVue Consumer',
       initialNotificationContent: 'Initializing...',
       foregroundServiceNotificationId: 888,
     ),
@@ -65,7 +66,7 @@ Future<bool> onIosBackground(ServiceInstance service) async {
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
-  
+
   // Set up notifications for background updates
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
@@ -81,18 +82,18 @@ void onStart(ServiceInstance service) async {
     if (event == null) return;
     final remoteIdStr = event['remote_id'] as String;
     final deviceId = event['device_id'] as String;
-    
+
     // Save to preferences so we can auto-reconnect on restart
     await BackgroundPreferences.saveDevice(deviceId, remoteIdStr, deviceId);
-    
+
     // Disconnect old session if any
     await session?.disconnect();
-    
+
     final profile = await BackgroundPreferences.getProfile();
     if (profile == null) return;
-    
+
     final device = BluetoothDevice.fromId(remoteIdStr);
-    
+
     session = BandSessionService(
       patientId: profile.id,
       deviceId: deviceId,
@@ -105,8 +106,10 @@ void onStart(ServiceInstance service) async {
       ),
       onIngest: (state) {
         final store = AuthTokenStore();
-        final repo = AuthRepository(baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
-        final interceptor = AuthInterceptor(store: store, repository: repo, onLogout: () {});
+        final repo = AuthRepository(
+            baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
+        final interceptor =
+            AuthInterceptor(store: store, repository: repo, onLogout: () {});
         return BandVitalsApi(
           baseUrl: 'https://vitalvue-api.genesysailabs.com',
           authInterceptor: interceptor,
@@ -128,7 +131,7 @@ void onStart(ServiceInstance service) async {
         );
       },
     );
-    
+
     session!.stateStream.listen((state) {
       // Broadcast state back to UI
       service.invoke('vitals_update', {
@@ -193,7 +196,7 @@ void onStart(ServiceInstance service) async {
     // simulate receiving it
     final remoteIdStr = savedDevice['mac']!;
     final deviceId = savedDevice['id']!;
-    
+
     final profile = await BackgroundPreferences.getProfile();
     if (profile != null) {
       final device = BluetoothDevice.fromId(remoteIdStr);
@@ -209,8 +212,10 @@ void onStart(ServiceInstance service) async {
         ),
         onIngest: (state) {
           final store = AuthTokenStore();
-          final repo = AuthRepository(baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
-          final interceptor = AuthInterceptor(store: store, repository: repo, onLogout: () {});
+          final repo = AuthRepository(
+              baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
+          final interceptor =
+              AuthInterceptor(store: store, repository: repo, onLogout: () {});
           return BandVitalsApi(
             baseUrl: 'https://vitalvue-api.genesysailabs.com',
             authInterceptor: interceptor,
@@ -232,7 +237,7 @@ void onStart(ServiceInstance service) async {
           );
         },
       );
-      
+
       session!.stateStream.listen((state) {
         service.invoke('vitals_update', {
           'status': state.connectionStatus.name,
@@ -253,8 +258,12 @@ void onStart(ServiceInstance service) async {
         if (service is AndroidServiceInstance) {
           flutterLocalNotificationsPlugin.show(
             id: 888,
-            title: state.connectionStatus == BleConnectionStatus.connected ? 'JBand Connected' : 'JBand Monitoring',
-            body: state.connectionStatus == BleConnectionStatus.connected ? 'HR: ${state.hr} bpm | Temp: ${state.tempC}°C' : 'Connecting...',
+            title: state.connectionStatus == BleConnectionStatus.connected
+                ? 'JBand Connected'
+                : 'JBand Monitoring',
+            body: state.connectionStatus == BleConnectionStatus.connected
+                ? 'HR: ${state.hr} bpm | Temp: ${state.tempC}°C'
+                : 'Connecting...',
             notificationDetails: const NotificationDetails(
               android: AndroidNotificationDetails(
                 'jband_monitor_service',

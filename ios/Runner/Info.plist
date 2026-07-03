@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>JBand Monitor needs Bluetooth to connect to your JStyle smartband and read health vitals.</string>
+	<string>VitalVue Consumer needs Bluetooth to connect to your JStyle smartband and read health vitals.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>JBand Monitor needs Bluetooth to connect to your JStyle smartband and read health vitals.</string>
+	<string>VitalVue Consumer needs Bluetooth to connect to your JStyle smartband and read health vitals.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Location is required to scan for Bluetooth devices on iOS.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

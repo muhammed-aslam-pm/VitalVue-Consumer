@@ -7,6 +7,9 @@
     <!-- Location required for BLE scan on Android ≤ 11 -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Internet Permission for Release Mode -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
     <!-- Background Service Permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
@@ -22,7 +25,7 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
     <application
-        android:label="jband_monitor"
+        android:label="VitalVue Consumer"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

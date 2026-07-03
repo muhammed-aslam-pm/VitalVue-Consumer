@@ -108,7 +108,7 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
         BlocProvider.value(value: _bandBloc),
       ],
       child: MaterialApp(
-        title: 'JBand Monitor',
+        title: 'VitalVue Consumer',
         debugShowCheckedModeBanner: false,
         theme: _buildTheme(),
         home: BlocConsumer<AuthBloc, AuthState>(
@@ -116,22 +116,22 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
             if (state is AuthAuthenticated) {
               final p = state.profile;
               context.read<BandMonitorBloc>().add(UpdateBandContext(
-                patientId: p.id,
-                personalInfo: PersonalInfo(
-                  sex: p.gender.toLowerCase().startsWith('m') ? 1 : 0,
-                  age: p.age,
-                  heightCm: p.height,
-                  weightKg: p.weight,
-                  stepLengthCm: (p.height * 0.415).round(),
-                ),
-              ));
+                    patientId: p.id,
+                    personalInfo: PersonalInfo(
+                      sex: p.gender.toLowerCase().startsWith('m') ? 1 : 0,
+                      age: p.age,
+                      heightCm: p.height,
+                      weightKg: p.weight,
+                      stepLengthCm: (p.height * 0.415).round(),
+                    ),
+                  ));
             }
           },
           builder: (context, state) {
             return switch (state) {
               AuthAuthenticated() => const BandMonitorPage(),
-              AuthInitial()      => const _SplashScreen(),
-              _                  => const LoginPage(),
+              AuthInitial() => const _SplashScreen(),
+              _ => const LoginPage(),
             };
           },
         ),
