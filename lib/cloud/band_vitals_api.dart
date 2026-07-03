@@ -17,6 +17,14 @@ class BandVitalsApi {
       receiveTimeout: const Duration(seconds: 20),
       headers: {'Content-Type': 'application/json'},
     ));
+    _dio.interceptors.add(LogInterceptor(
+      request: true,
+      requestHeader: true,
+      requestBody: true,
+      responseHeader: false,
+      responseBody: true,
+      error: true,
+    ));
     if (authInterceptor != null) {
       _dio.interceptors.add(authInterceptor);
     }
@@ -37,8 +45,11 @@ class BandVitalsApi {
     int bpSys = 0,
     int bpDia = 0,
     int hrv = 0,
-    String stress = 'Normal',
+    String stress = '0',
     int movement = 0,
+    int steps = 0,
+    double calories = 0.0,
+    double distanceKm = 0.0,
     int battery = -1,
     bool isConnected = true,
     bool isRemoved = false,
@@ -54,6 +65,9 @@ class BandVitalsApi {
       'hrv_score': hrv,
       'stress_level': stress,
       'movement': movement,
+      'steps': steps,
+      'calories': calories,
+      'distance_km': distanceKm,
       'sleep_pattern': 'unknown',
       'battery_percent': battery,
       'is_connected': isConnected,
@@ -62,7 +76,8 @@ class BandVitalsApi {
 
     // ignore: avoid_print
     print('[Cloud] POST $_endpoint  '
-        'HR=$hr SpO2=$spo2 Temp=$tempC BP=$bpSys/$bpDia bat=$battery removed=$isRemoved');
+        'HR=$hr SpO2=$spo2 Temp=$tempC BP=$bpSys/$bpDia bat=$battery removed=$isRemoved '
+        'HRV=$hrv Stress=$stress Steps=$steps Cal=$calories Dist=$distanceKm');
 
     try {
       final resp = await _dio.post(_endpoint, data: body);

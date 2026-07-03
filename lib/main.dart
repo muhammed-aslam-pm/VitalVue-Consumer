@@ -10,6 +10,7 @@ import 'bloc/auth_bloc.dart';
 import 'bloc/auth_event.dart';
 import 'bloc/auth_state.dart';
 import 'bloc/band_monitor_bloc.dart';
+import 'bloc/band_monitor_event.dart';
 import 'cloud/band_vitals_api.dart';
 import 'protocol/jstyle_codec.dart';
 import 'ui/pages/band_monitor_page.dart';
@@ -20,7 +21,7 @@ const _kApiBaseUrl = String.fromEnvironment(
   'BAND_API_URL',
   defaultValue: 'https://vitalvue-api.genesysailabs.com',
 );
-const _kPatientId = int.fromEnvironment('PATIENT_ID', defaultValue: 1);
+const _kPatientId = int.fromEnvironment('PATIENT_ID', defaultValue: 118);
 const _kDeviceId =
     String.fromEnvironment('DEVICE_ID', defaultValue: 'jband-dev-01');
 const _kPersonalInfo = PersonalInfo(
@@ -108,7 +109,22 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
         title: 'JBand Monitor',
         debugShowCheckedModeBanner: false,
         theme: _buildTheme(),
-        home: BlocBuilder<AuthBloc, AuthState>(
+        home: BlocConsumer<AuthBloc, AuthState>(
+          listener: (context, state) {
+            if (state is AuthAuthenticated) {
+              final p = state.profile;
+              context.read<BandMonitorBloc>().add(UpdateBandContext(
+                patientId: p.id,
+                personalInfo: PersonalInfo(
+                  sex: p.gender.toLowerCase().startsWith('m') ? 1 : 0,
+                  age: p.age,
+                  heightCm: p.height,
+                  weightKg: p.weight,
+                  stepLengthCm: (p.height * 0.415).round(),
+                ),
+              ));
+            }
+          },
           builder: (context, state) {
             return switch (state) {
               AuthAuthenticated() => const BandMonitorPage(),

@@ -7,13 +7,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../bloc/auth_bloc.dart';
-import '../../bloc/auth_event.dart';
+import '../../bloc/auth_state.dart';
 import '../../bloc/band_monitor_bloc.dart';
 import '../../bloc/band_monitor_event.dart';
 import '../../bloc/band_monitor_state.dart';
 import '../../session/band_session_service.dart';
 import '../widgets/device_scan_sheet.dart';
 import '../widgets/vital_card.dart';
+import 'profile_page.dart';
 
 class BandMonitorPage extends StatefulWidget {
   const BandMonitorPage({super.key});
@@ -176,15 +177,21 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           const Spacer(),
           _ConnectionChip(state: state),
           const SizedBox(width: 8),
-          IconButton(
-            onPressed: () =>
-                context.read<AuthBloc>().add(const AuthLogout()),
-            tooltip: 'Log out',
-            icon: Icon(
-              Icons.logout_rounded,
-              color: Colors.white.withValues(alpha: 0.4),
-              size: 20,
-            ),
+          BlocBuilder<AuthBloc, AuthState>(
+            builder: (context, authState) {
+              if (authState is AuthAuthenticated) {
+                return IconButton(
+                  onPressed: () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ProfilePage(profile: authState.profile),
+                    ));
+                  },
+                  icon: const Icon(Icons.person_rounded, color: Colors.white),
+                  tooltip: 'Profile',
+                );
+              }
+              return const SizedBox.shrink();
+            },
           ),
         ],
       ),
@@ -292,7 +299,61 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           subtitle: 'Systolic / Diastolic',
         )
             .animate()
-            .fadeIn(delay: 240.ms, duration: 400.ms)
+            .slideY(begin: 0.2, end: 0, duration: 400.ms),
+        VitalCard(
+          label: 'HRV',
+          value: (v.hrv != null && v.hrv! > 0) ? '${v.hrv}' : '--',
+          unit: 'ms',
+          icon: Icons.favorite_border_rounded,
+          accentColor: const Color(0xFFE91E63),
+          subtitle: 'Heart Rate Variability',
+        )
+            .animate()
+            .fadeIn(delay: 320.ms, duration: 400.ms)
+            .slideY(begin: 0.2, end: 0, duration: 400.ms),
+        VitalCard(
+          label: 'Stress',
+          value: (v.stress != null && v.stress! > 0) ? '${v.stress}' : '--',
+          unit: '',
+          icon: Icons.psychology_rounded,
+          accentColor: const Color(0xFF9C27B0),
+          subtitle: 'Stress Level',
+        )
+            .animate()
+            .fadeIn(delay: 400.ms, duration: 400.ms)
+            .slideY(begin: 0.2, end: 0, duration: 400.ms),
+        VitalCard(
+          label: 'Steps',
+          value: v.steps > 0 ? '${v.steps}' : '--',
+          unit: 'steps',
+          icon: Icons.directions_walk_rounded,
+          accentColor: const Color(0xFF4CAF50),
+          subtitle: 'Daily Activity',
+        )
+            .animate()
+            .fadeIn(delay: 480.ms, duration: 400.ms)
+            .slideY(begin: 0.2, end: 0, duration: 400.ms),
+        VitalCard(
+          label: 'Distance',
+          value: v.distanceKm > 0 ? v.distanceKm.toStringAsFixed(2) : '--',
+          unit: 'km',
+          icon: Icons.route_rounded,
+          accentColor: const Color(0xFF2196F3),
+          subtitle: 'Estimated',
+        )
+            .animate()
+            .fadeIn(delay: 560.ms, duration: 400.ms)
+            .slideY(begin: 0.2, end: 0, duration: 400.ms),
+        VitalCard(
+          label: 'Calories',
+          value: v.calories > 0 ? v.calories.toStringAsFixed(0) : '--',
+          unit: 'kcal',
+          icon: Icons.local_fire_department_rounded,
+          accentColor: const Color(0xFFFF5722),
+          subtitle: 'Burned today',
+        )
+            .animate()
+            .fadeIn(delay: 640.ms, duration: 400.ms)
             .slideY(begin: 0.2, end: 0, duration: 400.ms),
       ]),
     );

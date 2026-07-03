@@ -53,6 +53,7 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
     on<StopScan>(_onStopScan);
     on<ConnectToBand>(_onConnect);
     on<DisconnectBand>(_onDisconnect);
+    on<UpdateBandContext>(_onUpdateBandContext);
     // Internal events — handled inline with lambdas for brevity.
     on<_ScanResultReceived>((event, emit) {
       if (state is BandScanningState) {
@@ -76,9 +77,9 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
   }
 
   final BandVitalsApi _vitalsApi;
-  final int _patientId;
+  int _patientId;
   final String _deviceId;
-  final PersonalInfo _personalInfo;
+  PersonalInfo _personalInfo;
 
   BandSessionService? _session;
   StreamSubscription<BandState>? _stateSub;
@@ -101,6 +102,20 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
     _scanSub = null;
     await BandBleClient.stopScan();
     emit(const BandIdleState());
+  }
+
+  // ── Context ───────────────────────────────────────────────────────────────
+
+  void _onUpdateBandContext(
+    UpdateBandContext event,
+    Emitter<BandMonitorState> emit,
+  ) {
+    _patientId = event.patientId;
+    _personalInfo = event.personalInfo;
+    
+    // If we're already connected, we could theoretically send SetPersonalInfo
+    // command to the band here. For now, it will apply to the next connection
+    // and the ingest loop automatically picks up the new _patientId.
   }
 
   // ── Connect ───────────────────────────────────────────────────────────────
@@ -126,6 +141,11 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
         tempC: s.tempC,
         bpSys: s.systolic ?? 0,
         bpDia: s.diastolic ?? 0,
+        hrv: s.hrv ?? 0,
+        stress: (s.stress ?? 0).toString(),
+        steps: s.steps,
+        calories: s.calories,
+        distanceKm: s.distanceKm,
         battery: s.battery,
         isRemoved: s.isRemoved,
       ),

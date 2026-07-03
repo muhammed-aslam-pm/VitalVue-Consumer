@@ -126,7 +126,14 @@ class RealtimeEvent extends BandEvent {
 class BpResultEvent extends BandEvent {
   final int systolic;
   final int diastolic;
-  BpResultEvent({required this.systolic, required this.diastolic});
+  final int hrv;
+  final int stress;
+  BpResultEvent({
+    required this.systolic,
+    required this.diastolic,
+    required this.hrv,
+    required this.stress,
+  });
 }
 
 class BpNoDataEvent extends BandEvent {}
@@ -218,8 +225,15 @@ class JStyleCodec {
       if (value.length < 15) return BpNoDataEvent();
       final sys = value[13] & 0xFF;
       final dia = value[14] & 0xFF;
-      if (sys == 0 && dia == 0) return BpNoDataEvent();
-      return BpResultEvent(systolic: sys, diastolic: dia);
+      final hrv = value[9] & 0xFF;
+      final stress = value[12] & 0xFF;
+      if (sys == 0 && dia == 0 && hrv == 0) return BpNoDataEvent();
+      return BpResultEvent(
+        systolic: sys,
+        diastolic: dia,
+        hrv: hrv,
+        stress: stress,
+      );
     }
 
     if (dt == cmdGetBattery) {

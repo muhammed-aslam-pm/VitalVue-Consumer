@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../auth/patient_profile.dart';
 abstract class AuthState extends Equatable {
   const AuthState();
   @override
@@ -31,10 +32,10 @@ class AuthOtpSent extends AuthState {
 
 /// Fully authenticated — show band monitor dashboard.
 class AuthAuthenticated extends AuthState {
-  const AuthAuthenticated(this.userId);
-  final String userId;
+  const AuthAuthenticated(this.profile);
+  final PatientProfile profile;
   @override
-  List<Object?> get props => [userId];
+  List<Object?> get props => [profile];
 }
 
 /// Any auth error — show inline message without losing form state.

@@ -37,9 +37,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     final hasToken = await _store.hasToken;
-    if (hasToken) {
-      final uid = await _store.userId ?? '';
-      emit(AuthAuthenticated(uid));
+    final token = await _store.accessToken;
+    if (hasToken && token != null) {
+      try {
+        final profile = await _repo.getProfile(token);
+        emit(AuthAuthenticated(profile));
+      } catch (e) {
+        // If profile fetch fails on startup (e.g., token expired and refresh failed),
+        // we force logout.
+        await _repo.logout();
+        emit(const AuthUnauthenticated());
+      }
     } else {
       emit(const AuthUnauthenticated());
     }
@@ -68,7 +76,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthLoading());
     try {
       await _repo.verifyOtp(event.userId, event.otp);
-      emit(AuthAuthenticated(event.userId));
+      // Now that we have tokens, fetch profile
+      final token = await _store.accessToken;
+      if (token == null) throw const AuthException('Token missing after login');
+      
+      final profile = await _repo.getProfile(token);
+      emit(AuthAuthenticated(profile));
     } on AuthException catch (e) {
       emit(AuthError(
         message: e.message,

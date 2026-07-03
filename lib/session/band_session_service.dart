@@ -26,6 +26,11 @@ class BandState {
   final double tempC;
   final int? systolic;
   final int? diastolic;
+  final int? hrv;
+  final int? stress;
+  final int steps;
+  final double calories;
+  final double distanceKm;
   final int battery;
   final bool isRemoved;
   final String? errorMessage;
@@ -37,6 +42,11 @@ class BandState {
     this.tempC = 0.0,
     this.systolic,
     this.diastolic,
+    this.hrv,
+    this.stress,
+    this.steps = 0,
+    this.calories = 0.0,
+    this.distanceKm = 0.0,
     this.battery = -1,
     this.isRemoved = false,
     this.errorMessage,
@@ -49,6 +59,11 @@ class BandState {
     double? tempC,
     int? systolic,
     int? diastolic,
+    int? hrv,
+    int? stress,
+    int? steps,
+    double? calories,
+    double? distanceKm,
     int? battery,
     bool? isRemoved,
     String? errorMessage,
@@ -62,6 +77,11 @@ class BandState {
       tempC: tempC ?? this.tempC,
       systolic: clearBp ? null : (systolic ?? this.systolic),
       diastolic: clearBp ? null : (diastolic ?? this.diastolic),
+      hrv: hrv ?? this.hrv,
+      stress: stress ?? this.stress,
+      steps: steps ?? this.steps,
+      calories: calories ?? this.calories,
+      distanceKm: distanceKm ?? this.distanceKm,
       battery: battery ?? this.battery,
       isRemoved: isRemoved ?? this.isRemoved,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
@@ -284,23 +304,34 @@ class BandSessionService {
         }
         if (data.spo2 > 0) next = next.copyWith(spo2: data.spo2);
         if (data.tempC > 0) next = next.copyWith(tempC: data.tempC);
+        
+        // Update activity metrics (steps, calories, distance)
+        next = next.copyWith(
+          steps: data.steps,
+          calories: data.calories,
+          distanceKm: data.distanceKm,
+        );
+
         _emit(next);
         // Mirror Python: log.info("[%s] HR=%d SpO2=%d temp=%.1f | Removed: %s")
         debugPrint('[$deviceId] VITALS  HR=${next.hr} bpm  '
             'SpO2=${next.spo2}%  Temp=${next.tempC}°C  '
+            'Steps=${next.steps}  Cal=${next.calories}  Dist=${next.distanceKm}km  '
             '| removed=${next.isRemoved}');
 
-      case BpResultEvent(:final systolic, :final diastolic):
+      case BpResultEvent(:final systolic, :final diastolic, :final hrv, :final stress):
         if (systolic > 0 && diastolic > 0) {
           // BP receipt also proves band is on wrist — refresh watchdog.
           _lastValidHrTime = DateTime.now();
           _emit(_state.copyWith(
             systolic: systolic,
             diastolic: diastolic,
+            hrv: hrv,
+            stress: stress,
             isRemoved: false,
             clearError: true,
           ));
-          debugPrint('[$deviceId] BP received: $systolic/$diastolic mmHg');
+          debugPrint('[$deviceId] BP received: $systolic/$diastolic mmHg, HRV: $hrv, Stress: $stress');
         }
 
       case BpNoDataEvent():
