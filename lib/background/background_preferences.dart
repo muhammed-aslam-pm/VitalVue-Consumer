@@ -46,4 +46,12 @@ class BackgroundPreferences {
     await prefs.remove(_kDeviceMac);
     await prefs.remove(_kDeviceName);
   }
+
+  static Future<void> clearAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kProfile);
+    await prefs.remove(_kDeviceId);
+    await prefs.remove(_kDeviceMac);
+    await prefs.remove(_kDeviceName);
+  }
 }

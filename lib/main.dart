@@ -125,6 +125,8 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
                       stepLengthCm: (p.height * 0.415).round(),
                     ),
                   ));
+            } else if (state is AuthUnauthenticated) {
+              context.read<BandMonitorBloc>().add(const DisconnectBand());
             }
           },
           builder: (context, state) {

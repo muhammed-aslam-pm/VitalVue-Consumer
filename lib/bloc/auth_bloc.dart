@@ -5,7 +5,7 @@ import '../auth/auth_token_store.dart';
 import '../background/background_preferences.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
-
+import 'package:flutter_background_service/flutter_background_service.dart';
 /// Manages the authentication lifecycle.
 ///
 /// Cooperates with [AuthInterceptor]: when the interceptor detects that
@@ -97,6 +97,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLogout _,
     Emitter<AuthState> emit,
   ) async {
+    FlutterBackgroundService().invoke('stopService');
+    await BackgroundPreferences.clearAll();
     await _repo.logout();
     emit(const AuthUnauthenticated());
   }

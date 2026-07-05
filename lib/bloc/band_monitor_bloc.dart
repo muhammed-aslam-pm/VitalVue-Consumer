@@ -176,6 +176,9 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
 
   Future<void> _onDisconnect(
       DisconnectBand _, Emitter<BandMonitorState> emit) async {
+    await _scanSub?.cancel();
+    _scanSub = null;
+    await BandBleClient.stopScan();
     FlutterBackgroundService().invoke('stopService');
     emit(const BandDisconnectedState());
   }
