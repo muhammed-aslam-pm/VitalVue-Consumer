@@ -17,14 +17,14 @@ class BandVitalsApi {
       receiveTimeout: const Duration(seconds: 20),
       headers: {'Content-Type': 'application/json'},
     ));
-    _dio.interceptors.add(LogInterceptor(
-      request: true,
-      requestHeader: true,
-      requestBody: true,
-      responseHeader: false,
-      responseBody: true,
-      error: true,
-    ));
+    // _dio.interceptors.add(LogInterceptor(
+    //   request: true,
+    //   requestHeader: true,
+    //   requestBody: true,
+    //   responseHeader: false,
+    //   responseBody: true,
+    //   error: true,
+    // ));
     if (authInterceptor != null) {
       _dio.interceptors.add(authInterceptor);
     }
@@ -74,21 +74,11 @@ class BandVitalsApi {
       'is_removed': isRemoved,
     };
 
-    // ignore: avoid_print
-    print('[Cloud] POST $_endpoint  '
-        'HR=$hr SpO2=$spo2 Temp=$tempC BP=$bpSys/$bpDia bat=$battery removed=$isRemoved '
-        'HRV=$hrv Stress=$stress Steps=$steps Cal=$calories Dist=$distanceKm');
-
     try {
       final resp = await _dio.post(_endpoint, data: body);
       final ok = resp.statusCode != null && resp.statusCode! < 300;
-      // ignore: avoid_print
-      if (ok) print('[Cloud] ✓ Ingest accepted (${resp.statusCode})');
       return ok;
     } on DioException catch (e) {
-      // ignore: avoid_print
-      print('[Cloud] ✗ Ingest failed  status=${e.response?.statusCode}  '
-          'url=$_endpoint  msg=${e.message}');
       return false;
     }
   }

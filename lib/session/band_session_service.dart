@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -8,7 +9,7 @@ import '../protocol/jstyle_codec.dart';
 import '../db/vitals_database.dart';
 
 // ── Timer constants — match Python band_session.py exactly ──────────────────
-const _watchdogTimeoutS = 240; // HR=0 for >240s → band removed
+const _watchdogTimeoutS = 90; // HR=0 for >90s → band removed
 const _spo2KickIntervalS = 120; // SpO2 spot-check every 120s
 const _spo2KickDurationS = 45; // SpO2 PPG window
 const _spo2SuppressWindowS = _spo2KickDurationS + 30; // suppress watchdog during PPG
@@ -136,6 +137,9 @@ class BandSessionService {
   DateTime _lastKickTime = DateTime(2000);
   DateTime _lastBpKickTime = DateTime(2000);
 
+  // Staleness tracking to detect phantom pulses (band off-wrist but reporting steady HR)
+  final List<int> _hrHistory = [];
+
   StreamSubscription<Uint8List>? _notifySub;
   StreamSubscription<BluetoothConnectionState>? _connStateSub;
   
@@ -226,6 +230,7 @@ class BandSessionService {
     await _write('GetBattery', _codec.getBattery());
     await Future.delayed(const Duration(milliseconds: 500));
 
+    /*
     // Fetch History Data
     try {
       debugPrint('[$deviceId] Fetching Steps History...');
@@ -244,6 +249,7 @@ class BandSessionService {
     } catch (e) {
       debugPrint('[$deviceId] HR history sync timeout/error: $e');
     }
+    */
   }
 
   // ── Main loop tick — matches Python while self.ble.connected ──────────────
@@ -261,9 +267,9 @@ class BandSessionService {
       final secondsSinceValidHr = now.difference(_lastValidHrTime).inSeconds;
 
       if (secondsSinceValidHr > _watchdogTimeoutS) {
-        if (!_state.isRemoved) {
+        if (!_state.isRemoved || _state.hr > 0) {
           debugPrint('[$deviceId] WATCHDOG: HR flatlined >$_watchdogTimeoutS s. Band removed.');
-          _emit(_state.copyWith(isRemoved: true));
+          _emit(_state.copyWith(isRemoved: true, hr: 0, spo2: 0, tempC: 0.0));
         }
       }
 
@@ -341,9 +347,33 @@ class BandSessionService {
       case RealtimeEvent(:final data):
         var next = _state;
         if (data.hr > 0) {
-          next = next.copyWith(hr: data.hr, isRemoved: false, clearError: true);
-          _lastValidHrTime = DateTime.now();
+          _hrHistory.add(data.hr);
+          if (_hrHistory.length > 90) {
+            _hrHistory.removeAt(0);
+          }
+
+          bool isStale = false;
+          if (_hrHistory.length >= 90) {
+            final minHr = _hrHistory.reduce(math.min);
+            final maxHr = _hrHistory.reduce(math.max);
+            // If the HR hasn't varied by more than 2 bpm over 90 seconds, it's a phantom pulse
+            if (maxHr - minHr <= 2) {
+              isStale = true;
+            }
+          }
+
+          if (isStale) {
+            next = next.copyWith(hr: 0, spo2: 0, tempC: 0.0, isRemoved: true, clearError: true);
+            // DO NOT update _lastValidHrTime, so watchdog also trips if needed
+          } else {
+            next = next.copyWith(hr: data.hr, isRemoved: false, clearError: true);
+            _lastValidHrTime = DateTime.now();
+          }
+        } else {
+          // data.hr == 0
+          _hrHistory.clear(); // Reset history if we get a true 0 reading
         }
+        
         if (data.spo2 > 0) next = next.copyWith(spo2: data.spo2);
         if (data.tempC > 0) next = next.copyWith(tempC: data.tempC);
         

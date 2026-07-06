@@ -160,6 +160,7 @@ void onStart(ServiceInstance service) async {
           await db.markAsIngested(id);
         }
 
+        /*
         final uningested = await db.getUningestedVitals();
         for (var row in uningested) {
           if (row['_id'] == id) continue;
@@ -187,6 +188,7 @@ void onStart(ServiceInstance service) async {
             break;
           }
         }
+        */
         await db.deleteOldVitals();
       },
     );
@@ -324,6 +326,7 @@ void onStart(ServiceInstance service) async {
             await db.markAsIngested(id);
           }
 
+          /*
           final uningested = await db.getUningestedVitals();
           for (var row in uningested) {
             if (row['_id'] == id) continue;
@@ -351,6 +354,7 @@ void onStart(ServiceInstance service) async {
               break;
             }
           }
+          */
           await db.deleteOldVitals();
         },
       );
