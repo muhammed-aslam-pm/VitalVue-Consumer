@@ -245,6 +245,22 @@ class JStyleCodec {
     return frame(cmdMeasurementWithType, p);
   }
 
+  /// Configure the band's internal automatic background monitoring.
+  /// [kind]: 1=HR, 2=SpO2, 3=Temp, 4=HRV. [intervalMins] interval in minutes.
+  Uint8List setAutoMeasurement(int kind, int intervalMins, {required bool enable}) {
+    final p = Uint8List(9);
+    p[0] = enable ? 0x01 : 0x00; // open
+    p[1] = 0; // startHour (00:00)
+    p[2] = 0; // startMin
+    p[3] = 23; // endHour (23:59)
+    p[4] = 59; // endMin
+    p[5] = 0x7F; // week (all days)
+    p[6] = intervalMins & 0xFF; // time LSB
+    p[7] = (intervalMins >> 8) & 0xFF; // time MSB
+    p[8] = kind; // type: 1=HR
+    return frame(cmdSetAuto, p);
+  }
+
   Uint8List getBattery() => frame(cmdGetBattery);
   Uint8List getVersion() => frame(cmdGetVersion);
   Uint8List mcuReset() => frame(cmdMcuReset);

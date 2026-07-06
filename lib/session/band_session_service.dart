@@ -8,7 +8,7 @@ import '../protocol/jstyle_codec.dart';
 import '../db/vitals_database.dart';
 
 // ── Timer constants — match Python band_session.py exactly ──────────────────
-const _watchdogTimeoutS = 100; // HR=0 for >100s → band removed
+const _watchdogTimeoutS = 240; // HR=0 for >240s → band removed
 const _spo2KickIntervalS = 120; // SpO2 spot-check every 120s
 const _spo2KickDurationS = 45; // SpO2 PPG window
 const _spo2SuppressWindowS = _spo2KickDurationS + 30; // suppress watchdog during PPG
@@ -216,10 +216,10 @@ class BandSessionService {
   // ── Init sequence — matches Python _init_sequence() ───────────────────────
 
   Future<void> _initSequence() async {
-    // 1. Kickstart the HR sensor so it physically begins measuring immediately.
-    await _write('Kickstart_HR', _codec.setMeasurement(measHr, 3600, open: true));
+    // Note: Do NOT use setMeasurement or setAutoMeasurement here, as forcefully turning
+    // the LED on overrides the band's capacitive/reflective off-wrist detection, 
+    // causing it to hallucinate phantom pulses (e.g. HR=73) when placed on a table.
     
-    // 2. Open the streaming pipe to receive the measured data.
     await _write('RealTimeStep', _codec.realTimeStep(enable: true, tempEnable: true));
     await _write('SetDeviceTime', _codec.setDeviceTime());
     await _write('SetPersonalInfo', _codec.setPersonalInfo(_personalInfo));
@@ -393,10 +393,11 @@ class BandSessionService {
     if (records.isEmpty) return;
     
     final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24));
+    final oneHourFromNow = DateTime.now().add(const Duration(hours: 1));
     
     for (final r in records) {
-      // Ignore records older than 24 hours
-      if (r.timestamp.isBefore(oneDayAgo)) continue;
+      // Ignore records older than 24 hours or in the future (due to band clock errors)
+      if (r.timestamp.isBefore(oneDayAgo) || r.timestamp.isAfter(oneHourFromNow)) continue;
 
       final map = <String, dynamic>{
         'timestamp': r.timestamp.millisecondsSinceEpoch,
