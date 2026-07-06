@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../bloc/auth_bloc.dart';
 import '../../bloc/auth_event.dart';
 import '../../bloc/auth_state.dart';
+import 'register_patient_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -217,6 +218,27 @@ class _LoginPageState extends State<LoginPage> {
           icon: Icons.send_rounded,
           isLoading: isLoading,
           onPressed: () => _submitUserId(context),
+        ),
+        const SizedBox(height: 16),
+        TextButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const RegisterPatientPage(),
+              ),
+            );
+          },
+          icon: const Icon(Icons.person_add_rounded, size: 18, color: Colors.white70),
+          label: const Text(
+            'Register Patient',
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
         ),
       ],
     );
