@@ -79,6 +79,7 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
 
     // Listen to background service updates
     _bgSub = FlutterBackgroundService().on('vitals_update').listen((data) {
+      print('UI received vitals: $data');
       if (data == null) return;
       
       BleConnectionStatus status;

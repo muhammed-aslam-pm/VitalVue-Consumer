@@ -31,6 +31,12 @@ const cmdHeartPackage = 0x17; // realtime push (a)
 const cmdHeartPackageFromDev = 0x18; // realtime push (b)
 const cmdGetHrvData = 0x56; // BP / HRV
 
+const cmdGetTotalData = 0x51;
+const cmdGetDetailData = 0x52; // Steps history
+const cmdGetHeartData = 0x54;  // HR history
+const cmdGetOxygenData = 0x66; // SpO2 history
+const cmdReadTempHistory = 0x62; // Temp history
+
 // ── Measurement sub-types ─────────────────────────────────────────────────────
 const measHr = 0x02;
 const measSpo2 = 0x03;
@@ -49,7 +55,10 @@ int _crc(Uint8List buf) {
 }
 
 /// BCD encode — matches Python bcd(): int.parse(str(v), base=16).
-int _bcd(int v) => int.parse(v.toString(), radix: 16);
+int _bcdEncode(int v) => int.parse(v.toString(), radix: 16);
+
+/// BCD decode — properly convert BCD byte back to integer
+int _bcdDecode(int v) => int.parse(v.toRadixString(16));
 
 /// Little-endian byte assembly — matches Python gv(): (b & 0xFF) << (8*shift).
 int gv(int b, int shift) => (b & 0xFF) << (8 * shift);
@@ -114,6 +123,35 @@ class RealtimeData {
   });
 }
 
+// ── History Data classes ──────────────────────────────────────────────────────
+
+class HistoryRecord {
+  final DateTime timestamp;
+  HistoryRecord(this.timestamp);
+}
+
+class HistorySteps extends HistoryRecord {
+  final int steps;
+  final double calories;
+  final double distanceKm;
+  HistorySteps(super.timestamp, {required this.steps, required this.calories, required this.distanceKm});
+}
+
+class HistoryHr extends HistoryRecord {
+  final int hr;
+  HistoryHr(super.timestamp, this.hr);
+}
+
+class HistorySpo2 extends HistoryRecord {
+  final int spo2;
+  HistorySpo2(super.timestamp, this.spo2);
+}
+
+class HistoryTemp extends HistoryRecord {
+  final double tempC;
+  HistoryTemp(super.timestamp, this.tempC);
+}
+
 // ── Parsed event types ────────────────────────────────────────────────────────
 
 sealed class BandEvent {}
@@ -143,6 +181,13 @@ class BatteryEvent extends BandEvent {
   BatteryEvent(this.percent);
 }
 
+class HistoryDataEvent extends BandEvent {
+  final int cmd;
+  final List<HistoryRecord> records;
+  final bool isEnd;
+  HistoryDataEvent({required this.cmd, required this.records, required this.isEnd});
+}
+
 class UnknownEvent extends BandEvent {
   final int dataType;
   final String raw;
@@ -158,12 +203,12 @@ class JStyleCodec {
   Uint8List setDeviceTime([DateTime? when]) {
     final t = when ?? DateTime.now();
     return frame(cmdSetTime, Uint8List.fromList([
-      _bcd(t.year % 100),
-      _bcd(t.month),
-      _bcd(t.day),
-      _bcd(t.hour),
-      _bcd(t.minute),
-      _bcd(t.second),
+      _bcdEncode(t.year % 100),
+      _bcdEncode(t.month),
+      _bcdEncode(t.day),
+      _bcdEncode(t.hour),
+      _bcdEncode(t.minute),
+      _bcdEncode(t.second),
       0,
       _timezoneByte(),
     ]));
@@ -207,6 +252,12 @@ class JStyleCodec {
   /// Trigger HRV / Blood Pressure calculation. Matches Python get_bp_hrv_data().
   Uint8List getBpHrvData() => frame(cmdGetHrvData);
 
+  /// Fetch Historical Data (0x00 mode reads all)
+  Uint8List getHistorySteps() => frame(cmdGetDetailData, Uint8List.fromList([0x00]));
+  Uint8List getHistoryHeartRate() => frame(cmdGetHeartData, Uint8List.fromList([0x00]));
+  Uint8List getHistorySpo2() => frame(cmdGetOxygenData, Uint8List.fromList([0x00]));
+  Uint8List getHistoryTemp() => frame(cmdReadTempHistory, Uint8List.fromList([0x00]));
+
   // ── Parser ─────────────────────────────────────────────────────────────────
 
   /// Dispatch incoming GATT notification bytes to a typed [BandEvent].
@@ -239,6 +290,71 @@ class JStyleCodec {
     if (dt == cmdGetBattery) {
       final pct = value.length > 1 ? value[1] : -1;
       return BatteryEvent(pct);
+    }
+
+    // Historical HR
+    if (dt == cmdGetHeartData) {
+      final records = <HistoryRecord>[];
+      final count = 24;
+      final size = value.length ~/ count;
+      bool isEnd = false;
+      if (size == 0) return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
+      
+      for (int i = 0; i < size; i++) {
+        int offset = i * count;
+        if (value.isNotEmpty && value[value.length - 1] == 0xff) isEnd = true;
+        
+        try {
+          final year = 2000 + _bcdDecode(value[offset + 3]);
+          final month = _bcdDecode(value[offset + 4]);
+          final day = _bcdDecode(value[offset + 5]);
+          final hour = _bcdDecode(value[offset + 6]);
+          final minute = _bcdDecode(value[offset + 7]);
+          final second = _bcdDecode(value[offset + 8]);
+          final baseTime = DateTime(year, month, day, hour, minute, second);
+          
+          for (int j = 0; j < 15; j++) {
+            int hr = value[offset + 9 + j] & 0xFF;
+            if (hr > 0) {
+              records.add(HistoryHr(baseTime.add(Duration(minutes: j)), hr));
+            }
+          }
+        } catch (_) {}
+      }
+      return HistoryDataEvent(cmd: dt, records: records, isEnd: isEnd);
+    }
+
+    // Historical Steps
+    if (dt == cmdGetDetailData) {
+      final records = <HistoryRecord>[];
+      final count = 25;
+      final size = value.length ~/ count;
+      bool isEnd = false;
+      if (size == 0) return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
+      
+      for (int i = 0; i < size; i++) {
+        int offset = i * count;
+        if (value.isNotEmpty && value[value.length - 1] == 0xff) isEnd = true;
+        
+        try {
+          final year = 2000 + _bcdDecode(value[offset + 3]);
+          final month = _bcdDecode(value[offset + 4]);
+          final day = _bcdDecode(value[offset + 5]);
+          final hour = _bcdDecode(value[offset + 6]);
+          final minute = _bcdDecode(value[offset + 7]);
+          final second = _bcdDecode(value[offset + 8]);
+          final baseTime = DateTime(year, month, day, hour, minute, second);
+          
+          int steps = leSum(value, offset + 9, offset + 11);
+          double cal = leSum(value, offset + 11, offset + 13) / 100.0;
+          double dist = leSum(value, offset + 13, offset + 15) / 100.0;
+          
+          if (steps > 0 || cal > 0 || dist > 0) {
+            records.add(HistorySteps(baseTime, steps: steps, calories: cal, distanceKm: dist));
+          }
+        } catch (_) {}
+      }
+      return HistoryDataEvent(cmd: dt, records: records, isEnd: isEnd);
     }
 
     return UnknownEvent(dataType: dt, raw: _hex(value));

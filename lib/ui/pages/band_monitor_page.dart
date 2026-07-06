@@ -14,7 +14,9 @@ import '../../bloc/band_monitor_state.dart';
 import '../../session/band_session_service.dart';
 import '../widgets/device_scan_sheet.dart';
 import '../widgets/vital_card.dart';
+import '../widgets/vital_card.dart';
 import 'profile_page.dart';
+import 'vitals_details_page.dart';
 
 class BandMonitorPage extends StatefulWidget {
   const BandMonitorPage({super.key});
@@ -155,28 +157,35 @@ class _BandMonitorPageState extends State<BandMonitorPage>
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
       child: Row(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'VitalVue Consumer',
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'VitalVue', // Shortened title
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 22, // Reduced from 26
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Text(
-                'JStyle JCV5 Smartband',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4),
-                  fontSize: 13,
+                Text(
+                  'JStyle JCV5',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 12, // Reduced from 13
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
+          if (state is BandConnectedState && state.vitals.battery >= 0) ...[
+            _BatteryChip(battery: state.vitals.battery),
+            const SizedBox(width: 8),
+          ],
           _ConnectionChip(state: state),
           const SizedBox(width: 8),
           BlocBuilder<AuthBloc, AuthState>(
@@ -266,6 +275,14 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           accentColor: const Color(0xFFE53935),
           subtitle: v.isRemoved ? 'Off-wrist' : 'Live',
           isAlert: v.isRemoved,
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VitalsDetailsPage(
+              title: 'Heart Rate',
+              dbColumnName: 'hr',
+              unit: 'bpm',
+              accentColor: Color(0xFFE53935),
+            ),
+          )),
         )
             .animate()
             .fadeIn(duration: 400.ms)
@@ -277,6 +294,14 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           icon: Icons.water_drop_rounded,
           accentColor: const Color(0xFF00BFA5),
           subtitle: 'Oxygen saturation',
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VitalsDetailsPage(
+              title: 'SpO₂',
+              dbColumnName: 'spo2',
+              unit: '%',
+              accentColor: Color(0xFF00BFA5),
+            ),
+          )),
         )
             .animate()
             .fadeIn(delay: 80.ms, duration: 400.ms)
@@ -288,6 +313,14 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           icon: Icons.thermostat_rounded,
           accentColor: const Color(0xFFFFA726),
           subtitle: 'Skin temperature',
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VitalsDetailsPage(
+              title: 'Temperature',
+              dbColumnName: 'tempC',
+              unit: '°C',
+              accentColor: Color(0xFFFFA726),
+            ),
+          )),
         )
             .animate()
             .fadeIn(delay: 160.ms, duration: 400.ms)
@@ -299,6 +332,14 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           icon: Icons.monitor_heart_rounded,
           accentColor: const Color(0xFF7C4DFF),
           subtitle: 'Systolic / Diastolic',
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VitalsDetailsPage(
+              title: 'Blood Pressure (Systolic)',
+              dbColumnName: 'bpSys',
+              unit: 'mmHg',
+              accentColor: Color(0xFF7C4DFF),
+            ),
+          )),
         )
             .animate()
             .slideY(begin: 0.2, end: 0, duration: 400.ms),
@@ -309,6 +350,14 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           icon: Icons.favorite_border_rounded,
           accentColor: const Color(0xFFE91E63),
           subtitle: 'Heart Rate Variability',
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VitalsDetailsPage(
+              title: 'HRV',
+              dbColumnName: 'hrv',
+              unit: 'ms',
+              accentColor: Color(0xFFE91E63),
+            ),
+          )),
         )
             .animate()
             .fadeIn(delay: 320.ms, duration: 400.ms)
@@ -320,6 +369,14 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           icon: Icons.psychology_rounded,
           accentColor: const Color(0xFF9C27B0),
           subtitle: 'Stress Level',
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VitalsDetailsPage(
+              title: 'Stress Level',
+              dbColumnName: 'stress',
+              unit: '',
+              accentColor: Color(0xFF9C27B0),
+            ),
+          )),
         )
             .animate()
             .fadeIn(delay: 400.ms, duration: 400.ms)
@@ -331,6 +388,14 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           icon: Icons.directions_walk_rounded,
           accentColor: const Color(0xFF4CAF50),
           subtitle: 'Daily Activity',
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VitalsDetailsPage(
+              title: 'Steps',
+              dbColumnName: 'steps',
+              unit: 'steps',
+              accentColor: Color(0xFF4CAF50),
+            ),
+          )),
         )
             .animate()
             .fadeIn(delay: 480.ms, duration: 400.ms)
@@ -342,6 +407,14 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           icon: Icons.route_rounded,
           accentColor: const Color(0xFF2196F3),
           subtitle: 'Estimated',
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VitalsDetailsPage(
+              title: 'Distance',
+              dbColumnName: 'distanceKm',
+              unit: 'km',
+              accentColor: Color(0xFF2196F3),
+            ),
+          )),
         )
             .animate()
             .fadeIn(delay: 560.ms, duration: 400.ms)
@@ -353,6 +426,14 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           icon: Icons.local_fire_department_rounded,
           accentColor: const Color(0xFFFF5722),
           subtitle: 'Burned today',
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VitalsDetailsPage(
+              title: 'Calories',
+              dbColumnName: 'calories',
+              unit: 'kcal',
+              accentColor: Color(0xFFFF5722),
+            ),
+          )),
         )
             .animate()
             .fadeIn(delay: 640.ms, duration: 400.ms)
@@ -468,6 +549,52 @@ class _BackgroundGradient extends StatelessWidget {
           child: const SizedBox.expand(),
         ),
       );
+}
+
+class _BatteryChip extends StatelessWidget {
+  const _BatteryChip({required this.battery});
+  final int battery;
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    IconData icon;
+    if (battery > 50) {
+      color = const Color(0xFF43A047);
+      icon = Icons.battery_full_rounded;
+    } else if (battery > 20) {
+      color = const Color(0xFFFFA726);
+      icon = Icons.battery_5_bar_rounded;
+    } else {
+      color = const Color(0xFFE53935);
+      icon = Icons.battery_alert_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            '$battery%',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ConnectionChip extends StatelessWidget {

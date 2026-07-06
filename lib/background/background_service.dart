@@ -12,6 +12,7 @@ import '../auth/auth_token_store.dart';
 import '../session/band_session_service.dart';
 import '../protocol/jstyle_codec.dart';
 import 'background_preferences.dart';
+import '../db/vitals_database.dart';
 
 Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
@@ -104,16 +105,41 @@ void onStart(ServiceInstance service) async {
         weightKg: profile.weight,
         stepLengthCm: (profile.height * 0.415).toInt(),
       ),
-      onIngest: (state) {
+      onIngest: (state) async {
         final store = AuthTokenStore();
         final repo = AuthRepository(
             baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
         final interceptor =
             AuthInterceptor(store: store, repository: repo, onLogout: () {});
-        return BandVitalsApi(
+        final api = BandVitalsApi(
           baseUrl: 'https://vitalvue-api.genesysailabs.com',
           authInterceptor: interceptor,
-        ).ingest(
+        );
+        
+        final db = VitalsDatabase.instance;
+        
+        final vitalData = {
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'patient_id': profile.id,
+          'device_id': deviceId,
+          'hr': state.hr,
+          'spo2': state.spo2,
+          'tempC': state.tempC,
+          'bpSys': state.systolic ?? 0,
+          'bpDia': state.diastolic ?? 0,
+          'hrv': state.hrv ?? 0,
+          'stress': (state.stress ?? 0).toString(),
+          'steps': state.steps,
+          'calories': state.calories,
+          'distanceKm': state.distanceKm,
+          'battery': state.battery,
+          'isRemoved': state.isRemoved,
+          'isIngested': 0,
+        };
+
+        final id = await db.insertVital(vitalData);
+
+        final success = await api.ingest(
           patientId: profile.id,
           deviceId: deviceId,
           hr: state.hr,
@@ -129,6 +155,39 @@ void onStart(ServiceInstance service) async {
           battery: state.battery,
           isRemoved: state.isRemoved,
         );
+
+        if (success) {
+          await db.markAsIngested(id);
+        }
+
+        final uningested = await db.getUningestedVitals();
+        for (var row in uningested) {
+          if (row['_id'] == id) continue;
+          
+          final syncSuccess = await api.ingest(
+            patientId: row['patient_id'],
+            deviceId: row['device_id'],
+            hr: row['hr'],
+            spo2: row['spo2'],
+            tempC: row['tempC'],
+            bpSys: row['bpSys'],
+            bpDia: row['bpDia'],
+            hrv: row['hrv'],
+            stress: row['stress'],
+            steps: row['steps'],
+            calories: row['calories'],
+            distanceKm: row['distanceKm'],
+            battery: row['battery'],
+            isRemoved: row['isRemoved'] == 1,
+          );
+          
+          if (syncSuccess) {
+            await db.markAsIngested(row['_id']);
+          } else {
+            break;
+          }
+        }
+        await db.deleteOldVitals();
       },
     );
 
@@ -210,16 +269,41 @@ void onStart(ServiceInstance service) async {
           weightKg: profile.weight,
           stepLengthCm: (profile.height * 0.415).toInt(),
         ),
-        onIngest: (state) {
+        onIngest: (state) async {
           final store = AuthTokenStore();
           final repo = AuthRepository(
               baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
           final interceptor =
               AuthInterceptor(store: store, repository: repo, onLogout: () {});
-          return BandVitalsApi(
+          final api = BandVitalsApi(
             baseUrl: 'https://vitalvue-api.genesysailabs.com',
             authInterceptor: interceptor,
-          ).ingest(
+          );
+          
+          final db = VitalsDatabase.instance;
+          
+          final vitalData = {
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+            'patient_id': profile.id,
+            'device_id': deviceId,
+            'hr': state.hr,
+            'spo2': state.spo2,
+            'tempC': state.tempC,
+            'bpSys': state.systolic ?? 0,
+            'bpDia': state.diastolic ?? 0,
+            'hrv': state.hrv ?? 0,
+            'stress': (state.stress ?? 0).toString(),
+            'steps': state.steps,
+            'calories': state.calories,
+            'distanceKm': state.distanceKm,
+            'battery': state.battery,
+            'isRemoved': state.isRemoved,
+            'isIngested': 0,
+          };
+
+          final id = await db.insertVital(vitalData);
+
+          final success = await api.ingest(
             patientId: profile.id,
             deviceId: deviceId,
             hr: state.hr,
@@ -235,6 +319,39 @@ void onStart(ServiceInstance service) async {
             battery: state.battery,
             isRemoved: state.isRemoved,
           );
+
+          if (success) {
+            await db.markAsIngested(id);
+          }
+
+          final uningested = await db.getUningestedVitals();
+          for (var row in uningested) {
+            if (row['_id'] == id) continue;
+            
+            final syncSuccess = await api.ingest(
+              patientId: row['patient_id'],
+              deviceId: row['device_id'],
+              hr: row['hr'],
+              spo2: row['spo2'],
+              tempC: row['tempC'],
+              bpSys: row['bpSys'],
+              bpDia: row['bpDia'],
+              hrv: row['hrv'],
+              stress: row['stress'],
+              steps: row['steps'],
+              calories: row['calories'],
+              distanceKm: row['distanceKm'],
+              battery: row['battery'],
+              isRemoved: row['isRemoved'] == 1,
+            );
+            
+            if (syncSuccess) {
+              await db.markAsIngested(row['_id']);
+            } else {
+              break;
+            }
+          }
+          await db.deleteOldVitals();
         },
       );
 

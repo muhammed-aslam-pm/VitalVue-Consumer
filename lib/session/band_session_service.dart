@@ -5,6 +5,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../ble/band_ble_client.dart';
 import '../protocol/jstyle_codec.dart';
+import '../db/vitals_database.dart';
 
 // ── Timer constants — match Python band_session.py exactly ──────────────────
 const _watchdogTimeoutS = 100; // HR=0 for >100s → band removed
@@ -126,6 +127,9 @@ class BandSessionService {
   Timer? _ingestTimer;
   Timer? _delayedBpTimer;
 
+  Completer<void>? _historyStepsCompleter;
+  Completer<void>? _historyHrCompleter;
+
   // Timestamp tracking.
   DateTime _lastValidHrTime = DateTime.now();
   DateTime _lastSpo2KickTime = DateTime(2000);
@@ -212,13 +216,34 @@ class BandSessionService {
   // ── Init sequence — matches Python _init_sequence() ───────────────────────
 
   Future<void> _initSequence() async {
+    // 1. Kickstart the HR sensor so it physically begins measuring immediately.
+    await _write('Kickstart_HR', _codec.setMeasurement(measHr, 3600, open: true));
+    
+    // 2. Open the streaming pipe to receive the measured data.
     await _write('RealTimeStep', _codec.realTimeStep(enable: true, tempEnable: true));
     await _write('SetDeviceTime', _codec.setDeviceTime());
     await _write('SetPersonalInfo', _codec.setPersonalInfo(_personalInfo));
-    await _write(
-        'Kickstart_HR', _codec.setMeasurement(measHr, 3600, open: true));
     await _write('GetBattery', _codec.getBattery());
     await Future.delayed(const Duration(milliseconds: 500));
+
+    // Fetch History Data
+    try {
+      debugPrint('[$deviceId] Fetching Steps History...');
+      _historyStepsCompleter = Completer<void>();
+      await _write('GetHistorySteps', _codec.getHistorySteps());
+      await _historyStepsCompleter!.future.timeout(const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint('[$deviceId] Steps history sync timeout/error: $e');
+    }
+
+    try {
+      debugPrint('[$deviceId] Fetching HR History...');
+      _historyHrCompleter = Completer<void>();
+      await _write('GetHistoryHR', _codec.getHistoryHeartRate());
+      await _historyHrCompleter!.future.timeout(const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint('[$deviceId] HR history sync timeout/error: $e');
+    }
   }
 
   // ── Main loop tick — matches Python while self.ble.connected ──────────────
@@ -246,7 +271,6 @@ class BandSessionService {
       if (secondsSinceValidHr > 120) {
         debugPrint('[$deviceId] Stalled stream. Issuing restart handshake.');
         _write('Recover_RealTime', _codec.realTimeStep(enable: true, tempEnable: true));
-        _write('Kickstart_HR', _codec.setMeasurement(measHr, 3600, open: true));
         _lastValidHrTime = now; // reset to prevent spam
       }
     }
@@ -303,6 +327,17 @@ class BandSessionService {
     if (event == null) return;
 
     switch (event) {
+      case HistoryDataEvent(:final records, :final isEnd, :final cmd):
+        _ingestHistoryRecords(records);
+        if (isEnd) {
+          if (cmd == cmdGetDetailData && _historyStepsCompleter?.isCompleted == false) {
+            _historyStepsCompleter!.complete();
+          } else if (cmd == cmdGetHeartData && _historyHrCompleter?.isCompleted == false) {
+            _historyHrCompleter!.complete();
+          }
+        }
+        break;
+        
       case RealtimeEvent(:final data):
         var next = _state;
         if (data.hr > 0) {
@@ -350,12 +385,41 @@ class BandSessionService {
         debugPrint('[$deviceId] BATTERY  $percent%');
 
       case UnknownEvent(:final dataType, :final raw):
-        debugPrint('[$deviceId] UNKNOWN frame  cmd=0x${dataType.toRadixString(16).padLeft(2, "0")}  raw=$raw');
-        break;
+        debugPrint('[$deviceId] Unhandled event type=0x${dataType.toRadixString(16)} raw=$raw');
     }
   }
 
-  // ── Cloud ingest ───────────────────────────────────────────────────────────
+  Future<void> _ingestHistoryRecords(List<HistoryRecord> records) async {
+    if (records.isEmpty) return;
+    
+    final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24));
+    
+    for (final r in records) {
+      // Ignore records older than 24 hours
+      if (r.timestamp.isBefore(oneDayAgo)) continue;
+
+      final map = <String, dynamic>{
+        'timestamp': r.timestamp.millisecondsSinceEpoch,
+        'patient_id': patientId,
+        'device_id': deviceId,
+        'isRemoved': 0,
+        'isIngested': 0,
+      };
+      if (r is HistoryHr) {
+        map['hr'] = r.hr;
+      } else if (r is HistorySteps) {
+        map['steps'] = r.steps;
+        map['calories'] = r.calories;
+        map['distanceKm'] = r.distanceKm;
+      }
+      await VitalsDatabase.instance.upsertVital(map);
+    }
+    
+    // Clear any older history automatically
+    await VitalsDatabase.instance.deleteOldVitals();
+  }
+
+  // ── Database Ingest Loop — matches Python _ingest_to_cloud() ───────────────────────────────────────────────────────────
 
   void _runIngest() {
     onIngest(_state).catchError((e) {
