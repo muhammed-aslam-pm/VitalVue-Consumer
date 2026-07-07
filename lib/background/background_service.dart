@@ -74,8 +74,8 @@ void onStart(ServiceInstance service) async {
 
   BandSessionService? session;
 
-  service.on('stopService').listen((event) {
-    session?.disconnect();
+  service.on('stopService').listen((event) async {
+    await session?.disconnect();
     service.stopSelf();
   });
 
@@ -154,6 +154,7 @@ void onStart(ServiceInstance service) async {
           distanceKm: state.distanceKm,
           battery: state.battery,
           isRemoved: state.isRemoved,
+          isConnected: state.connectionStatus == BleConnectionStatus.connected,
         );
 
         if (success) {
@@ -320,6 +321,7 @@ void onStart(ServiceInstance service) async {
             distanceKm: state.distanceKm,
             battery: state.battery,
             isRemoved: state.isRemoved,
+            isConnected: state.connectionStatus == BleConnectionStatus.connected,
           );
 
           if (success) {

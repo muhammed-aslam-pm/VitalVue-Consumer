@@ -77,8 +77,24 @@ class BandVitalsApi {
     try {
       final resp = await _dio.post(_endpoint, data: body);
       final ok = resp.statusCode != null && resp.statusCode! < 300;
+      
+      if (!isConnected) {
+        // ignore: avoid_print
+        print('[Cloud] ✓ Final disconnect ingest sent (Status: ${resp.statusCode})');
+      } else {
+        // ignore: avoid_print
+        print('[Cloud] ✓ Ingest sent (Status: ${resp.statusCode}) HR: $hr, SpO2: $spo2');
+      }
+      
       return ok;
     } on DioException catch (e) {
+      if (!isConnected) {
+        // ignore: avoid_print
+        print('[Cloud] ✗ Final disconnect ingest failed (Error: ${e.message})');
+      } else {
+        // ignore: avoid_print
+        print('[Cloud] ✗ Ingest failed (Error: ${e.message})');
+      }
       return false;
     }
   }

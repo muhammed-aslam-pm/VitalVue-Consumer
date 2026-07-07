@@ -207,6 +207,7 @@ class BandSessionService {
     await _connStateSub?.cancel();
     await _ble.disconnect();
     _emit(_state.copyWith(connectionStatus: BleConnectionStatus.disconnected));
+    await _runIngest(); // Immediately push disconnected status to cloud and wait for it
   }
 
   void dispose() {
@@ -452,10 +453,12 @@ class BandSessionService {
 
   // ── Database Ingest Loop — matches Python _ingest_to_cloud() ───────────────────────────────────────────────────────────
 
-  void _runIngest() {
-    onIngest(_state).catchError((e) {
+  Future<void> _runIngest() async {
+    try {
+      await onIngest(_state);
+    } catch (e) {
       debugPrint('[$deviceId] Ingest error: $e');
-    });
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -479,6 +482,7 @@ class BandSessionService {
   void _handleDisconnect() {
     _cancelTimers();
     _emit(_state.copyWith(connectionStatus: BleConnectionStatus.disconnected));
+    _runIngest(); // Fire-and-forget for unexpected disconnects
     
     if (_device != null && !_isAutoReconnecting) {
       _startAutoReconnect();
