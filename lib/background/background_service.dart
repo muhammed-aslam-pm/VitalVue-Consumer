@@ -99,11 +99,11 @@ void onStart(ServiceInstance service) async {
       patientId: profile.id,
       deviceId: deviceId,
       personalInfo: PersonalInfo(
-        age: profile.age,
-        sex: profile.gender == 'Male' ? 1 : 0,
-        heightCm: profile.height,
-        weightKg: profile.weight,
-        stepLengthCm: (profile.height * 0.415).toInt(),
+        age: profile.age ?? 30,
+        sex: (profile.gender ?? 'Male') == 'Male' ? 1 : 0,
+        heightCm: profile.height ?? 170,
+        weightKg: profile.weight ?? 70,
+        stepLengthCm: ((profile.height ?? 170) * 0.415).toInt(),
       ),
       onIngest: (state) async {
         final store = AuthTokenStore();
@@ -266,11 +266,11 @@ void onStart(ServiceInstance service) async {
         patientId: profile.id,
         deviceId: deviceId,
         personalInfo: PersonalInfo(
-          age: profile.age,
-          sex: profile.gender == 'Male' ? 1 : 0,
-          heightCm: profile.height,
-          weightKg: profile.weight,
-          stepLengthCm: (profile.height * 0.415).toInt(),
+          age: profile.age ?? 30,
+          sex: (profile.gender ?? 'Male') == 'Male' ? 1 : 0,
+          heightCm: profile.height ?? 170,
+          weightKg: profile.weight ?? 70,
+          stepLengthCm: ((profile.height ?? 170) * 0.415).toInt(),
         ),
         onIngest: (state) async {
           final store = AuthTokenStore();

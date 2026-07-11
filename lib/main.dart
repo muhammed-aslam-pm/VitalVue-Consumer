@@ -115,16 +115,19 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
           listener: (context, state) {
             if (state is AuthAuthenticated) {
               final p = state.profile;
-              context.read<BandMonitorBloc>().add(UpdateBandContext(
-                    patientId: p.id,
-                    personalInfo: PersonalInfo(
-                      sex: p.gender.toLowerCase().startsWith('m') ? 1 : 0,
-                      age: p.age,
-                      heightCm: p.height,
-                      weightKg: p.weight,
-                      stepLengthCm: (p.height * 0.415).round(),
-                    ),
-                  ));
+              // Only patients have band biometric context
+              if (p.isPatient) {
+                context.read<BandMonitorBloc>().add(UpdateBandContext(
+                      patientId: p.id,
+                      personalInfo: PersonalInfo(
+                        sex: (p.gender ?? 'Male').toLowerCase().startsWith('m') ? 1 : 0,
+                        age: p.age ?? 30,
+                        heightCm: p.height ?? 170,
+                        weightKg: p.weight ?? 70,
+                        stepLengthCm: ((p.height ?? 170) * 0.415).round(),
+                      ),
+                    ));
+              }
             } else if (state is AuthUnauthenticated) {
               context.read<BandMonitorBloc>().add(const DisconnectBand());
             }

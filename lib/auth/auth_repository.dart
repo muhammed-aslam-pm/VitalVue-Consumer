@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 
 import 'auth_token_store.dart';
-import 'patient_profile.dart';
+import 'user_profile.dart';
 /// Pure data layer for VitalVue authentication.
 ///
 /// Two-step flow (staff / nurse / doctor):
@@ -116,14 +116,14 @@ class AuthRepository {
   // ── Fetch Profile ──────────────────────────────────────────────────────────
 
   /// Fetches the user profile from the server using the provided access token.
-  Future<PatientProfile> getProfile(String accessToken) async {
+  Future<UserProfile> getProfile(String accessToken) async {
     try {
       final resp = await _dio.get(
         'api/v1/auth/profile',
         options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
       );
       final body = resp.data as Map<String, dynamic>;
-      return PatientProfile.fromJson(body);
+      return UserProfile.fromJson(body);
     } on DioException catch (e) {
       throw AuthException._fromDio(e);
     }

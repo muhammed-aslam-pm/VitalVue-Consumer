@@ -2,14 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../auth/patient_profile.dart';
+import '../../auth/user_profile.dart';
 import '../../bloc/auth_bloc.dart';
 import '../../bloc/auth_event.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key, required this.profile});
 
-  final PatientProfile profile;
+  final UserProfile profile;
+
+  // Map role values to readable display strings
+  String get _roleLabel {
+    switch (profile.role) {
+      case 'doctor':
+        return 'Doctor';
+      case 'nurse':
+        return 'Nurse';
+      case 'patient':
+        return 'Patient';
+      default:
+        return profile.role[0].toUpperCase() + profile.role.substring(1);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +33,7 @@ class ProfilePage extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          'Patient Profile',
+          '$_roleLabel Profile',
           style: GoogleFonts.inter(fontWeight: FontWeight.w600),
         ),
       ),
@@ -32,7 +46,9 @@ class ProfilePage extends StatelessWidget {
               radius: 48,
               backgroundColor: const Color(0xFF1A73E8).withValues(alpha: 0.2),
               child: Text(
-                profile.fullName.isNotEmpty ? profile.fullName[0].toUpperCase() : '?',
+                profile.fullName.isNotEmpty
+                    ? profile.fullName[0].toUpperCase()
+                    : '?',
                 style: GoogleFonts.inter(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
@@ -49,45 +65,90 @@ class ProfilePage extends StatelessWidget {
                 color: Colors.white,
               ),
             ),
-            Text(
-              'Patient ID: ${profile.userId}',
-              style: const TextStyle(
-                fontSize: 16,
-                color: Colors.white54,
+            // Role badge
+            Container(
+              margin: const EdgeInsets.only(top: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A73E8).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: const Color(0xFF1A73E8).withValues(alpha: 0.4)),
               ),
+              child: Text(
+                _roleLabel,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1A73E8),
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+            Text(
+              'ID: ${profile.userId}',
+              style: const TextStyle(fontSize: 14, color: Colors.white54),
             ),
             const SizedBox(height: 32),
 
-            // Info Cards
-            _buildSection(
-              title: 'Vitals Basics',
-              children: [
-                _buildRow('Age', '${profile.age} years'),
-                _buildRow('Gender', profile.gender),
-                _buildRow('Height', '${profile.height} cm'),
-                _buildRow('Weight', '${profile.weight} kg'),
-                _buildRow('Blood Group', profile.bloodGroup ?? 'N/A'),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            _buildSection(
-              title: 'Hospital Context',
-              children: [
-                _buildRow('Doctor', profile.doctorName ?? 'N/A'),
-                _buildRow('Department', profile.departmentName ?? 'N/A'),
-                _buildRow('Ward / Room', '${profile.wardName ?? '-'} / ${profile.roomNumber ?? '-'}'),
-              ],
-            ),
+            // ── Patient sections ──────────────────────────────────────────
+            if (profile.isPatient) ...[
+              _buildSection(
+                title: 'Vitals Basics',
+                children: [
+                  _buildRow('Age', '${profile.age ?? 'N/A'} years'),
+                  _buildRow('Gender', profile.gender ?? 'N/A'),
+                  _buildRow('Height',
+                      profile.height != null ? '${profile.height} cm' : 'N/A'),
+                  _buildRow('Weight',
+                      profile.weight != null ? '${profile.weight} kg' : 'N/A'),
+                  _buildRow('Blood Group', profile.bloodGroup ?? 'N/A'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildSection(
+                title: 'Hospital Context',
+                children: [
+                  _buildRow('Doctor', profile.doctorName ?? 'N/A'),
+                  _buildRow('Department', profile.departmentName ?? 'N/A'),
+                  _buildRow('Ward / Room',
+                      '${profile.wardName ?? '-'} / ${profile.roomNumber ?? '-'}'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildSection(
+                title: 'Contact Information',
+                children: [
+                  _buildRow('Primary Phone', profile.phoneNumber ?? 'N/A'),
+                  _buildRow('Alt Phone', profile.altPhone ?? 'N/A'),
+                ],
+              ),
+            ],
 
-            const SizedBox(height: 16),
-            _buildSection(
-              title: 'Contact Information',
-              children: [
-                _buildRow('Primary Phone', profile.phoneNumber ?? 'N/A'),
-                _buildRow('Alt Phone', profile.altPhone ?? 'N/A'),
-              ],
-            ),
+            // ── Staff / Doctor / Nurse sections ───────────────────────────
+            if (!profile.isPatient) ...[
+              _buildSection(
+                title: 'Professional Details',
+                children: [
+                  if (profile.specialization != null)
+                    _buildRow('Specialization', profile.specialization!),
+                  if (profile.isOnCall != null)
+                    _buildRow(
+                        'On-Call Status', profile.isOnCall! ? 'On Call' : 'Off Duty'),
+                  if (profile.organizationId != null)
+                    _buildRow('Organisation',
+                        'Org #${profile.organizationId}'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildSection(
+                title: 'Contact Information',
+                children: [
+                  _buildRow('Phone', profile.phoneNumber ?? 'N/A'),
+                ],
+              ),
+            ],
 
             const SizedBox(height: 48),
             SizedBox(
@@ -119,8 +180,10 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildSection({required String title, required List<Widget> children}) {
+  Widget _buildSection(
+      {required String title, required List<Widget> children}) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF1A1D27),
@@ -151,23 +214,17 @@ class ProfilePage extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 15,
-              color: Colors.white54,
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Colors.white,
-            ),
-          ),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 15, color: Colors.white54)),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white)),
         ],
       ),
     );
   }
 }
+

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../auth/patient_profile.dart';
+import '../auth/user_profile.dart';
 
 class BackgroundPreferences {
   static const _kProfile = 'bg_profile';
@@ -8,17 +8,17 @@ class BackgroundPreferences {
   static const _kDeviceMac = 'bg_device_mac';
   static const _kDeviceName = 'bg_device_name';
 
-  static Future<void> saveProfile(PatientProfile profile) async {
+  static Future<void> saveProfile(UserProfile profile) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kProfile, jsonEncode(profile.toJson()));
   }
 
-  static Future<PatientProfile?> getProfile() async {
+  static Future<UserProfile?> getProfile() async {
     final prefs = await SharedPreferences.getInstance();
     final str = prefs.getString(_kProfile);
     if (str == null) return null;
     try {
-      return PatientProfile.fromJson(jsonDecode(str));
+      return UserProfile.fromJson(jsonDecode(str));
     } catch (_) {
       return null;
     }

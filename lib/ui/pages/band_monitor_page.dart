@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../auth/user_profile.dart';
 import '../../bloc/auth_bloc.dart';
 import '../../bloc/auth_state.dart';
 import '../../bloc/band_monitor_bloc.dart';
@@ -13,7 +14,6 @@ import '../../bloc/band_monitor_event.dart';
 import '../../bloc/band_monitor_state.dart';
 import '../../session/band_session_service.dart';
 import '../widgets/device_scan_sheet.dart';
-import '../widgets/vital_card.dart';
 import '../widgets/vital_card.dart';
 import 'profile_page.dart';
 import 'vitals_details_page.dart';
@@ -95,55 +95,79 @@ class _BandMonitorPageState extends State<BandMonitorPage>
 
           // Main content
           SafeArea(
-            child: BlocConsumer<BandMonitorBloc, BandMonitorState>(
-              listener: (context, state) {
-                if (state is BandDisconnectedState && state.reason != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(state.reason!),
-                      backgroundColor: const Color(0xFFE53935),
-                    ),
-                  );
-                }
-              },
-              builder: (context, state) {
-                return CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: _buildAppBar(context, state),
-                    ),
-                    SliverToBoxAdapter(
-                      child: _buildConnectionBanner(context, state),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      sliver: _buildBody(context, state),
-                    ),
-                  ],
+            child: BlocBuilder<AuthBloc, AuthState>(
+              builder: (context, authState) {
+                final profile = authState is AuthAuthenticated
+                    ? authState.profile
+                    : null;
+                final isPatient = profile?.isPatient ?? false;
+
+                return BlocConsumer<BandMonitorBloc, BandMonitorState>(
+                  listener: (context, state) {
+                    if (state is BandDisconnectedState &&
+                        state.reason != null &&
+                        isPatient) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(state.reason!),
+                          backgroundColor: const Color(0xFFE53935),
+                        ),
+                      );
+                    }
+                  },
+                  builder: (context, bandState) {
+                    return CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: _buildAppBar(context, bandState, profile),
+                        ),
+                        if (isPatient)
+                          SliverToBoxAdapter(
+                            child: _buildConnectionBanner(context, bandState),
+                          ),
+                        SliverPadding(
+                          padding:
+                              const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          sliver: isPatient
+                              ? _buildBody(context, bandState)
+                              : _buildStaffHome(profile),
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
             ),
           ),
         ],
       ),
-      floatingActionButton: BlocBuilder<BandMonitorBloc, BandMonitorState>(
-        builder: (context, state) {
-          if (state is BandConnectedState) {
-            return FloatingActionButton.extended(
-              onPressed: () =>
-                  context.read<BandMonitorBloc>().add(const DisconnectBand()),
-              backgroundColor: const Color(0xFF242736),
-              foregroundColor: Colors.white70,
-              icon: const Icon(Icons.bluetooth_disabled_rounded),
-              label: const Text('Disconnect'),
-            );
+      floatingActionButton: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, authState) {
+          // Only show band-connection FAB for patients
+          if (authState is! AuthAuthenticated || !authState.profile.isPatient) {
+            return const SizedBox.shrink();
           }
-          return FloatingActionButton.extended(
-            onPressed: () => _requestPermissionsAndScan(context),
-            backgroundColor: const Color(0xFF1A73E8),
-            foregroundColor: Colors.white,
-            icon: const Icon(Icons.bluetooth_searching_rounded),
-            label: const Text('Scan for Band'),
+          return BlocBuilder<BandMonitorBloc, BandMonitorState>(
+            builder: (context, state) {
+              if (state is BandConnectedState) {
+                return FloatingActionButton.extended(
+                  onPressed: () => context
+                      .read<BandMonitorBloc>()
+                      .add(const DisconnectBand()),
+                  backgroundColor: const Color(0xFF242736),
+                  foregroundColor: Colors.white70,
+                  icon: const Icon(Icons.bluetooth_disabled_rounded),
+                  label: const Text('Disconnect'),
+                );
+              }
+              return FloatingActionButton.extended(
+                onPressed: () => _requestPermissionsAndScan(context),
+                backgroundColor: const Color(0xFF1A73E8),
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.bluetooth_searching_rounded),
+                label: const Text('Scan for Band'),
+              );
+            },
           );
         },
       ),
@@ -152,7 +176,9 @@ class _BandMonitorPageState extends State<BandMonitorPage>
 
   // ── App Bar ───────────────────────────────────────────────────────────────
 
-  Widget _buildAppBar(BuildContext context, BandMonitorState state) {
+  Widget _buildAppBar(
+      BuildContext context, BandMonitorState state, UserProfile? profile) {
+    final isPatient = profile?.isPatient ?? false;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
       child: Row(
@@ -162,48 +188,46 @@ class _BandMonitorPageState extends State<BandMonitorPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'VitalVue', // Shortened title
+                  'VitalVue',
                   style: GoogleFonts.inter(
                     color: Colors.white,
-                    fontSize: 22, // Reduced from 26
+                    fontSize: 22,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  'JStyle JCV5',
+                  isPatient ? 'JStyle JCV5' : (profile?.role ?? ''),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.4),
-                    fontSize: 12, // Reduced from 13
+                    fontSize: 12,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          if (state is BandConnectedState && state.vitals.battery >= 0) ...[
-            _BatteryChip(battery: state.vitals.battery),
+          // Battery & connection chips — patients only
+          if (isPatient) ...[
+            if (state is BandConnectedState && state.vitals.battery >= 0) ...[
+              _BatteryChip(battery: state.vitals.battery),
+              const SizedBox(width: 8),
+            ],
+            _ConnectionChip(state: state),
             const SizedBox(width: 8),
           ],
-          _ConnectionChip(state: state),
-          const SizedBox(width: 8),
-          BlocBuilder<AuthBloc, AuthState>(
-            builder: (context, authState) {
-              if (authState is AuthAuthenticated) {
-                return IconButton(
-                  onPressed: () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ProfilePage(profile: authState.profile),
-                    ));
-                  },
-                  icon: const Icon(Icons.person_rounded, color: Colors.white),
-                  tooltip: 'Profile',
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
+          // Profile button — always visible
+          if (profile != null)
+            IconButton(
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ProfilePage(profile: profile),
+                ));
+              },
+              icon: const Icon(Icons.person_rounded, color: Colors.white),
+              tooltip: 'Profile',
+            ),
         ],
       ),
     );
@@ -251,6 +275,49 @@ class _BandMonitorPageState extends State<BandMonitorPage>
 
     return SliverFillRemaining(
       child: _buildIdleState(),
+    );
+  }
+
+  /// Placeholder home screen for non-patient users (doctors, nurses, etc.)
+  Widget _buildStaffHome(UserProfile? profile) {
+    return SliverFillRemaining(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.medical_services_rounded,
+              size: 72,
+              color: Colors.white.withValues(alpha: 0.12),
+            )
+                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .scale(
+                    begin: const Offset(0.95, 0.95),
+                    end: const Offset(1.05, 1.05),
+                    duration: 2000.ms,
+                    curve: Curves.easeInOut),
+            const SizedBox(height: 24),
+            Text(
+              'Welcome, ${profile?.fullName.split(' ').first ?? 'there'}',
+              style: GoogleFonts.inter(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Staff features coming soon.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.35),
+                fontSize: 14,
+                height: 1.6,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
