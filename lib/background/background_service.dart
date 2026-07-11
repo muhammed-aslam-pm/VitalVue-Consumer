@@ -109,26 +109,37 @@ void onStart(ServiceInstance service) async {
     await flutterTts.setVolume(1.0);
     await flutterTts.setSpeechRate(0.5);
 
-    sseService.connect().listen((event) {
+    sseService.connect().listen((event) async {
       if (event is SseCriticalAlertEvent) {
-        flutterTts.speak('Critical Alert. ${event.vitalType} in ${event.wardName}, Room ${event.roomNumber}.');
+        final enableTts = await BackgroundPreferences.getEnableTts();
+        final enablePush = await BackgroundPreferences.getEnablePush();
+
+        final hasRoom = event.roomNumber.isNotEmpty;
+
+        if (enableTts) {
+          final roomTxt = hasRoom ? ' in ${event.wardName}, Room ${event.roomNumber}' : ' for Patient ${event.patientId}';
+          flutterTts.speak('Critical Alert. ${event.vitalType}$roomTxt.');
+        }
         
-        flutterLocalNotificationsPlugin.show(
-          id: event.alertId ?? DateTime.now().millisecondsSinceEpoch % 100000,
-          title: 'Critical Alert: ${event.vitalType} (${event.wardName} - Rm ${event.roomNumber})',
-          body: 'Value triggered: ${event.triggeredValue} (${event.severity})',
-          notificationDetails: const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'critical_alerts_channel',
-              'Critical Alerts',
-              icon: 'ic_bg_service_small',
-              importance: Importance.max,
-              priority: Priority.max,
-              enableVibration: true,
-              playSound: true,
+        if (enablePush) {
+          final roomTxtPush = hasRoom ? ' (${event.wardName} - Rm ${event.roomNumber})' : ' (Patient ${event.patientId})';
+          flutterLocalNotificationsPlugin.show(
+            id: event.alertId,
+            title: 'Critical Alert: ${event.vitalType}$roomTxtPush',
+            body: 'Value triggered: ${event.triggeredValue} (${event.severity})',
+            notificationDetails: const NotificationDetails(
+              android: AndroidNotificationDetails(
+                'critical_alerts_channel',
+                'Critical Alerts',
+                icon: 'ic_bg_service_small',
+                importance: Importance.max,
+                priority: Priority.max,
+                enableVibration: true,
+                playSound: true,
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     });
     

@@ -7,6 +7,8 @@ class BackgroundPreferences {
   static const _kDeviceId = 'bg_device_id';
   static const _kDeviceMac = 'bg_device_mac';
   static const _kDeviceName = 'bg_device_name';
+  static const _kEnableTTS = 'bg_enable_tts';
+  static const _kEnablePush = 'bg_enable_push';
 
   static Future<void> saveProfile(UserProfile profile) async {
     final prefs = await SharedPreferences.getInstance();
@@ -53,5 +55,27 @@ class BackgroundPreferences {
     await prefs.remove(_kDeviceId);
     await prefs.remove(_kDeviceMac);
     await prefs.remove(_kDeviceName);
+  }
+
+  static Future<bool> getEnableTts() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs.getBool(_kEnableTTS) ?? true;
+  }
+
+  static Future<void> setEnableTts(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kEnableTTS, value);
+  }
+
+  static Future<bool> getEnablePush() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs.getBool(_kEnablePush) ?? true;
+  }
+
+  static Future<void> setEnablePush(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kEnablePush, value);
   }
 }

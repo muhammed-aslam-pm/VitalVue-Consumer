@@ -5,15 +5,41 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../auth/user_profile.dart';
 import '../../bloc/auth_bloc.dart';
 import '../../bloc/auth_event.dart';
+import '../../background/background_preferences.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, required this.profile});
 
   final UserProfile profile;
 
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  bool _enableTts = true;
+  bool _enablePush = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final tts = await BackgroundPreferences.getEnableTts();
+    final push = await BackgroundPreferences.getEnablePush();
+    if (mounted) {
+      setState(() {
+        _enableTts = tts;
+        _enablePush = push;
+      });
+    }
+  }
+
   // Map role values to readable display strings
   String get _roleLabel {
-    switch (profile.role) {
+    switch (widget.profile.role) {
       case 'doctor':
         return 'Doctor';
       case 'nurse':
@@ -21,12 +47,13 @@ class ProfilePage extends StatelessWidget {
       case 'patient':
         return 'Patient';
       default:
-        return profile.role[0].toUpperCase() + profile.role.substring(1);
+        return widget.profile.role[0].toUpperCase() + widget.profile.role.substring(1);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final profile = widget.profile;
     return Scaffold(
       backgroundColor: const Color(0xFF0F1117),
       appBar: AppBar(
@@ -149,6 +176,53 @@ class ProfilePage extends StatelessWidget {
                 ],
               ),
             ],
+
+            const SizedBox(height: 16),
+            _buildSection(
+              title: 'Alert Settings',
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: const Color(0xFF1A73E8),
+                    title: const Text(
+                      'Voice Announcements',
+                      style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: const Text(
+                      'Verbal read-out of critical alerts',
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                    ),
+                    value: _enableTts,
+                    onChanged: (val) async {
+                      setState(() => _enableTts = val);
+                      await BackgroundPreferences.setEnableTts(val);
+                    },
+                  ),
+                ),
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: const Color(0xFF1A73E8),
+                    title: const Text(
+                      'Push Notifications',
+                      style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: const Text(
+                      'Heads-up banners for critical alerts',
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                    ),
+                    value: _enablePush,
+                    onChanged: (val) async {
+                      setState(() => _enablePush = val);
+                      await BackgroundPreferences.setEnablePush(val);
+                    },
+                  ),
+                ),
+              ],
+            ),
 
             const SizedBox(height: 48),
             SizedBox(
