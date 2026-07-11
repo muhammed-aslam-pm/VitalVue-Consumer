@@ -542,10 +542,16 @@ class _Background extends StatelessWidget {
   Widget _blob(Color color, double size) => Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-          child: const SizedBox.expand(),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color,
+              color.withValues(alpha: 0.2),
+              color.withValues(alpha: 0.0),
+            ],
+            stops: const [0.2, 0.6, 1.0],
+          ),
         ),
       );
 }
