@@ -74,9 +74,8 @@ class VitalsSseService {
         String? eventType;
         String? dataBuf;
 
-        await for (final line in resp
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())) {
+        await for (final line
+            in resp.transform(utf8.decoder).transform(const LineSplitter())) {
           if (ctrl.isClosed) break;
 
           if (line.startsWith('event: ')) {

@@ -13,6 +13,8 @@ import '../session/band_session_service.dart';
 import '../protocol/jstyle_codec.dart';
 import 'background_preferences.dart';
 import '../db/vitals_database.dart';
+import '../cloud/vitals_sse_service.dart';
+import '../cloud/sse_events.dart';
 
 Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
@@ -23,6 +25,15 @@ Future<void> initializeBackgroundService() async {
     description:
         'Keeps the BLE connection and vital sync alive in the background.',
     importance: Importance.low,
+  );
+
+  const AndroidNotificationChannel alertChannel = AndroidNotificationChannel(
+    'critical_alerts_channel',
+    'Critical Alerts',
+    description: 'Notifications for critical patient vitals',
+    importance: Importance.max,
+    playSound: true,
+    enableVibration: true,
   );
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -40,6 +51,11 @@ Future<void> initializeBackgroundService() async {
       .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(alertChannel);
 
   await service.configure(
     androidConfiguration: AndroidConfiguration(
@@ -71,6 +87,48 @@ void onStart(ServiceInstance service) async {
   // Set up notifications for background updates
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
+
+  // --- STAFF/DOCTOR SSE BACKGROUND LOGIC ---
+  final profile = await BackgroundPreferences.getProfile();
+  if (profile != null && !profile.isPatient) {
+    if (service is AndroidServiceInstance) {
+      service.setForegroundNotificationInfo(
+        title: 'VitalVue Monitoring',
+        content: 'Monitoring Vitals 24/7',
+      );
+    }
+    
+    final tokenStore = AuthTokenStore();
+    final sseService = VitalsSseService(
+      baseUrl: 'https://vitalvue-api.genesysailabs.com',
+      tokenStore: tokenStore,
+    );
+
+    sseService.connect().listen((event) {
+      if (event is SseCriticalAlertEvent) {
+        flutterLocalNotificationsPlugin.show(
+          id: event.alertId ?? DateTime.now().millisecondsSinceEpoch % 100000,
+          title: 'Critical Alert: ${event.vitalType} (${event.wardName} - Rm ${event.roomNumber})',
+          body: 'Value triggered: ${event.triggeredValue} (${event.severity})',
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'critical_alerts_channel',
+              'Critical Alerts',
+              icon: 'ic_bg_service_small',
+              importance: Importance.max,
+              priority: Priority.max,
+              enableVibration: true,
+              playSound: true,
+            ),
+          ),
+        );
+      }
+    });
+    
+    // For staff, we just run the SSE stream and don't need the BLE stuff below.
+    return;
+  }
+  // --- END STAFF/DOCTOR LOGIC ---
 
   BandSessionService? session;
 
