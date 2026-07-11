@@ -15,6 +15,7 @@ import 'background_preferences.dart';
 import '../db/vitals_database.dart';
 import '../cloud/vitals_sse_service.dart';
 import '../cloud/sse_events.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
@@ -104,8 +105,14 @@ void onStart(ServiceInstance service) async {
       tokenStore: tokenStore,
     );
 
+    final flutterTts = FlutterTts();
+    await flutterTts.setVolume(1.0);
+    await flutterTts.setSpeechRate(0.5);
+
     sseService.connect().listen((event) {
       if (event is SseCriticalAlertEvent) {
+        flutterTts.speak('Critical Alert. ${event.vitalType} in ${event.wardName}, Room ${event.roomNumber}.');
+        
         flutterLocalNotificationsPlugin.show(
           id: event.alertId ?? DateTime.now().millisecondsSinceEpoch % 100000,
           title: 'Critical Alert: ${event.vitalType} (${event.wardName} - Rm ${event.roomNumber})',
