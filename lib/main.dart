@@ -11,10 +11,14 @@ import 'bloc/auth_event.dart';
 import 'bloc/auth_state.dart';
 import 'bloc/band_monitor_bloc.dart';
 import 'bloc/band_monitor_event.dart';
+import 'bloc/patients_bloc.dart';
 import 'cloud/band_vitals_api.dart';
+import 'cloud/patients_repository.dart';
+import 'cloud/vitals_sse_service.dart';
 import 'protocol/jstyle_codec.dart';
 import 'ui/pages/band_monitor_page.dart';
 import 'ui/pages/login_page.dart';
+import 'ui/pages/staff_dashboard_page.dart';
 import 'background/background_service.dart';
 
 // ── Configuration — edit these or pass via --dart-define ─────────────────────
@@ -61,6 +65,9 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
   late final AuthInterceptor _authInterceptor;
   late final BandVitalsApi _vitalsApi;
   late final BandMonitorBloc _bandBloc;
+  late final VitalsSseService _sseService;
+  late final PatientsRepository _patientsRepo;
+  late final PatientsBloc _patientsBloc;
 
   @override
   void initState() {
@@ -89,6 +96,19 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
       personalInfo: _kPersonalInfo,
     );
 
+    _patientsRepo = PatientsRepository(
+      baseUrl: _kApiBaseUrl,
+      authInterceptor: _authInterceptor,
+    );
+    _sseService = VitalsSseService(
+      baseUrl: _kApiBaseUrl,
+      tokenStore: _tokenStore,
+    );
+    _patientsBloc = PatientsBloc(
+      repository: _patientsRepo,
+      sseService: _sseService,
+    );
+
     // Check for persisted token on startup.
     _authBloc.add(const AuthCheckStatus());
   }
@@ -97,6 +117,7 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
   void dispose() {
     _authBloc.close();
     _bandBloc.close();
+    _patientsBloc.close();
     super.dispose();
   }
 
@@ -106,6 +127,7 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
       providers: [
         BlocProvider.value(value: _authBloc),
         BlocProvider.value(value: _bandBloc),
+        BlocProvider.value(value: _patientsBloc),
       ],
       child: MaterialApp(
         title: 'VitalVue Consumer',
@@ -133,8 +155,12 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
             }
           },
           builder: (context, state) {
+            if (state is AuthAuthenticated) {
+              return state.profile.isPatient
+                  ? const BandMonitorPage()
+                  : const StaffDashboardPage();
+            }
             return switch (state) {
-              AuthAuthenticated() => const BandMonitorPage(),
               AuthInitial() => const _SplashScreen(),
               _ => const LoginPage(),
             };
