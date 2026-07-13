@@ -8,6 +8,16 @@
 	<string>VitalVue Consumer needs Bluetooth to connect to your JStyle smartband and read health vitals.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Location is required to scan for Bluetooth devices on iOS.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>dev.flutter.background.refresh</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
