@@ -165,6 +165,8 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
     final service = FlutterBackgroundService();
     if (!await service.isRunning()) {
       await service.startService();
+      // Give the background isolate time to register event listeners.
+      await Future.delayed(const Duration(milliseconds: 800));
     }
     
     service.invoke('connectDevice', {

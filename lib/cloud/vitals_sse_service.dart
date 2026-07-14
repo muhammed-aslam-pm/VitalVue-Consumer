@@ -62,6 +62,14 @@ class VitalsSseService {
 
         print('SSE: HTTP ${resp.statusCode}');
 
+        if (resp.statusCode == 401 || resp.statusCode == 403) {
+          // Not authorized for this endpoint — stop retrying.
+          print('SSE: Stopping reconnect loop due to ${resp.statusCode}.');
+          _httpClient?.close(force: true);
+          _httpClient = null;
+          break;
+        }
+
         if (resp.statusCode != 200) {
           throw Exception('SSE HTTP ${resp.statusCode}');
         }
