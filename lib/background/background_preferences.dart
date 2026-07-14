@@ -17,6 +17,7 @@ class BackgroundPreferences {
 
   static Future<UserProfile?> getProfile() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     final str = prefs.getString(_kProfile);
     if (str == null) return null;
     try {

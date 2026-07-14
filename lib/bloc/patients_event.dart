@@ -23,3 +23,8 @@ class DismissAlert extends PatientsEvent {
   @override
   List<Object?> get props => [alertId];
 }
+
+/// Stop polling and clear data when logging out.
+class StopPatients extends PatientsEvent {
+  const StopPatients();
+}

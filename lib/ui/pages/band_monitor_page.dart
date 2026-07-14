@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 
 import '../../auth/user_profile.dart';
@@ -33,6 +34,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
   @override
   void initState() {
     super.initState();
+    Permission.notification.request();
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -50,7 +52,6 @@ class _BandMonitorPageState extends State<BandMonitorPage>
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
       Permission.locationWhenInUse,
-      Permission.notification,
       Permission.ignoreBatteryOptimizations,
     ].request();
 
@@ -68,6 +69,24 @@ class _BandMonitorPageState extends State<BandMonitorPage>
         );
       }
       return;
+    }
+
+    if (!context.mounted) return;
+
+    if (await FlutterBluePlus.adapterState.first == BluetoothAdapterState.off) {
+      try {
+        await FlutterBluePlus.turnOn();
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please turn on Bluetooth to scan for devices.'),
+              backgroundColor: Color(0xFFE53935),
+            ),
+          );
+        }
+        return;
+      }
     }
 
     if (!context.mounted) return;

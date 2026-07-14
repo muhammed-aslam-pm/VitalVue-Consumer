@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:jband_monitor/bloc/patients_event.dart';
 
 import 'auth/auth_interceptor.dart';
 import 'auth/auth_repository.dart';
@@ -142,7 +143,9 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
                 context.read<BandMonitorBloc>().add(UpdateBandContext(
                       patientId: p.id,
                       personalInfo: PersonalInfo(
-                        sex: (p.gender ?? 'Male').toLowerCase().startsWith('m') ? 1 : 0,
+                        sex: (p.gender ?? 'Male').toLowerCase().startsWith('m')
+                            ? 1
+                            : 0,
                         age: p.age ?? 30,
                         heightCm: p.height ?? 170,
                         weightKg: p.weight ?? 70,
@@ -152,6 +155,7 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
               }
             } else if (state is AuthUnauthenticated) {
               context.read<BandMonitorBloc>().add(const DisconnectBand());
+              context.read<PatientsBloc>().add(const StopPatients());
             }
           },
           builder: (context, state) {

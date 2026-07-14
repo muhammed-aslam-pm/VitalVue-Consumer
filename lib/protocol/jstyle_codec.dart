@@ -33,7 +33,7 @@ const cmdGetHrvData = 0x56; // BP / HRV
 
 const cmdGetTotalData = 0x51;
 const cmdGetDetailData = 0x52; // Steps history
-const cmdGetHeartData = 0x54;  // HR history
+const cmdGetHeartData = 0x54; // HR history
 const cmdGetOxygenData = 0x66; // SpO2 history
 const cmdReadTempHistory = 0x62; // Temp history
 
@@ -134,7 +134,8 @@ class HistorySteps extends HistoryRecord {
   final int steps;
   final double calories;
   final double distanceKm;
-  HistorySteps(super.timestamp, {required this.steps, required this.calories, required this.distanceKm});
+  HistorySteps(super.timestamp,
+      {required this.steps, required this.calories, required this.distanceKm});
 }
 
 class HistoryHr extends HistoryRecord {
@@ -185,7 +186,8 @@ class HistoryDataEvent extends BandEvent {
   final int cmd;
   final List<HistoryRecord> records;
   final bool isEnd;
-  HistoryDataEvent({required this.cmd, required this.records, required this.isEnd});
+  HistoryDataEvent(
+      {required this.cmd, required this.records, required this.isEnd});
 }
 
 class UnknownEvent extends BandEvent {
@@ -202,35 +204,41 @@ class JStyleCodec {
   /// Sync device clock using BCD-encoded fields. Matches Python set_device_time().
   Uint8List setDeviceTime([DateTime? when]) {
     final t = when ?? DateTime.now();
-    return frame(cmdSetTime, Uint8List.fromList([
-      _bcdEncode(t.year % 100),
-      _bcdEncode(t.month),
-      _bcdEncode(t.day),
-      _bcdEncode(t.hour),
-      _bcdEncode(t.minute),
-      _bcdEncode(t.second),
-      0,
-      _timezoneByte(),
-    ]));
+    return frame(
+        cmdSetTime,
+        Uint8List.fromList([
+          _bcdEncode(t.year % 100),
+          _bcdEncode(t.month),
+          _bcdEncode(t.day),
+          _bcdEncode(t.hour),
+          _bcdEncode(t.minute),
+          _bcdEncode(t.second),
+          0,
+          _timezoneByte(),
+        ]));
   }
 
   /// Write user biometrics so the band can compute calories/distance.
   Uint8List setPersonalInfo(PersonalInfo info) {
-    return frame(cmdSetUserinfo, Uint8List.fromList([
-      info.sex & 0xFF,
-      info.age & 0xFF,
-      info.heightCm & 0xFF,
-      info.weightKg & 0xFF,
-      info.stepLengthCm & 0xFF,
-    ]));
+    return frame(
+        cmdSetUserinfo,
+        Uint8List.fromList([
+          info.sex & 0xFF,
+          info.age & 0xFF,
+          info.heightCm & 0xFF,
+          info.weightKg & 0xFF,
+          info.stepLengthCm & 0xFF,
+        ]));
   }
 
   /// Enable/disable real-time HR + step + temperature streaming.
   Uint8List realTimeStep({bool enable = true, bool tempEnable = true}) {
-    return frame(cmdEnableActivity, Uint8List.fromList([
-      enable ? 1 : 0,
-      tempEnable ? 1 : 0,
-    ]));
+    return frame(
+        cmdEnableActivity,
+        Uint8List.fromList([
+          enable ? 1 : 0,
+          tempEnable ? 1 : 0,
+        ]));
   }
 
   /// HR kickstart or SpO2 spot-check. kind = measHr | measSpo2.
@@ -247,7 +255,8 @@ class JStyleCodec {
 
   /// Configure the band's internal automatic background monitoring.
   /// [kind]: 1=HR, 2=SpO2, 3=Temp, 4=HRV. [intervalMins] interval in minutes.
-  Uint8List setAutoMeasurement(int kind, int intervalMins, {required bool enable}) {
+  Uint8List setAutoMeasurement(int kind, int intervalMins,
+      {required bool enable}) {
     final p = Uint8List(9);
     p[0] = enable ? 0x01 : 0x00; // open
     p[1] = 0; // startHour (00:00)
@@ -269,10 +278,14 @@ class JStyleCodec {
   Uint8List getBpHrvData() => frame(cmdGetHrvData);
 
   /// Fetch Historical Data (0x00 mode reads all)
-  Uint8List getHistorySteps() => frame(cmdGetDetailData, Uint8List.fromList([0x00]));
-  Uint8List getHistoryHeartRate() => frame(cmdGetHeartData, Uint8List.fromList([0x00]));
-  Uint8List getHistorySpo2() => frame(cmdGetOxygenData, Uint8List.fromList([0x00]));
-  Uint8List getHistoryTemp() => frame(cmdReadTempHistory, Uint8List.fromList([0x00]));
+  Uint8List getHistorySteps() =>
+      frame(cmdGetDetailData, Uint8List.fromList([0x00]));
+  Uint8List getHistoryHeartRate() =>
+      frame(cmdGetHeartData, Uint8List.fromList([0x00]));
+  Uint8List getHistorySpo2() =>
+      frame(cmdGetOxygenData, Uint8List.fromList([0x00]));
+  Uint8List getHistoryTemp() =>
+      frame(cmdReadTempHistory, Uint8List.fromList([0x00]));
 
   // ── Parser ─────────────────────────────────────────────────────────────────
 
@@ -314,12 +327,13 @@ class JStyleCodec {
       final count = 24;
       final size = value.length ~/ count;
       bool isEnd = false;
-      if (size == 0) return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
-      
+      if (size == 0)
+        return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
+
       for (int i = 0; i < size; i++) {
         int offset = i * count;
         if (value.isNotEmpty && value[value.length - 1] == 0xff) isEnd = true;
-        
+
         try {
           final year = 2000 + _bcdDecode(value[offset + 3]);
           final month = _bcdDecode(value[offset + 4]);
@@ -328,7 +342,7 @@ class JStyleCodec {
           final minute = _bcdDecode(value[offset + 7]);
           final second = _bcdDecode(value[offset + 8]);
           final baseTime = DateTime(year, month, day, hour, minute, second);
-          
+
           for (int j = 0; j < 15; j++) {
             int hr = value[offset + 9 + j] & 0xFF;
             if (hr > 0) {
@@ -346,12 +360,13 @@ class JStyleCodec {
       final count = 25;
       final size = value.length ~/ count;
       bool isEnd = false;
-      if (size == 0) return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
-      
+      if (size == 0)
+        return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
+
       for (int i = 0; i < size; i++) {
         int offset = i * count;
         if (value.isNotEmpty && value[value.length - 1] == 0xff) isEnd = true;
-        
+
         try {
           final year = 2000 + _bcdDecode(value[offset + 3]);
           final month = _bcdDecode(value[offset + 4]);
@@ -360,13 +375,14 @@ class JStyleCodec {
           final minute = _bcdDecode(value[offset + 7]);
           final second = _bcdDecode(value[offset + 8]);
           final baseTime = DateTime(year, month, day, hour, minute, second);
-          
+
           int steps = leSum(value, offset + 9, offset + 11);
           double cal = leSum(value, offset + 11, offset + 13) / 100.0;
           double dist = leSum(value, offset + 13, offset + 15) / 100.0;
-          
+
           if (steps > 0 || cal > 0 || dist > 0) {
-            records.add(HistorySteps(baseTime, steps: steps, calories: cal, distanceKm: dist));
+            records.add(HistorySteps(baseTime,
+                steps: steps, calories: cal, distanceKm: dist));
           }
         } catch (_) {}
       }
@@ -381,9 +397,8 @@ class JStyleCodec {
   /// Port of ResolveUtil.getActivityData — realtime HR/SpO2/temp/steps packet.
   static RealtimeData _parseRealtime(Uint8List raw) {
     // Pad to at least 25 bytes to safely index all fields.
-    final Uint8List value = raw.length < 25
-        ? (Uint8List(25)..setRange(0, raw.length, raw))
-        : raw;
+    final Uint8List value =
+        raw.length < 25 ? (Uint8List(25)..setRange(0, raw.length, raw)) : raw;
 
     final steps = leSum(value, 1, 5);
     final cal = leSum(value, 5, 9) / 100.0;

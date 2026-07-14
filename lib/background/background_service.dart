@@ -109,7 +109,7 @@ void onStart(ServiceInstance service) async {
     await flutterTts.setVolume(1.0);
     await flutterTts.setSpeechRate(0.5);
 
-    sseService.connect().listen((event) async {
+    final sseSubscription = sseService.connect().listen((event) async {
       if (event is SseCriticalAlertEvent) {
         final enableTts = await BackgroundPreferences.getEnableTts();
         final enablePush = await BackgroundPreferences.getEnablePush();
@@ -143,6 +143,23 @@ void onStart(ServiceInstance service) async {
       }
     });
     
+    service.on('stopService').listen((event) async {
+      await sseSubscription.cancel();
+      service.stopSelf();
+    });
+
+    // Self-stopping watchdog: check every 5s if the user is still logged in.
+    // This is needed because invoke('stopService') can be dropped when the
+    // main Flutter engine tears down during logout.
+    Timer.periodic(const Duration(seconds: 5), (timer) async {
+      final p = await BackgroundPreferences.getProfile();
+      if (p == null) {
+        timer.cancel();
+        await sseSubscription.cancel();
+        service.stopSelf();
+      }
+    });
+
     // For staff, we just run the SSE stream and don't need the BLE stuff below.
     return;
   }

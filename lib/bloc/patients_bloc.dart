@@ -58,6 +58,7 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     on<LoadPatients>(_onLoad);
     on<RefreshPatients>(_onRefresh);
     on<DismissAlert>(_onDismissAlert);
+    on<StopPatients>(_onStop);
     on<_PollDataReceived>(_onPollData);
     on<_PollErrorReceived>(_onPollError);
     on<_SseConnectionChanged>(_onSseConnection);
@@ -129,6 +130,14 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     final alerts =
         cur.pendingAlerts.where((a) => a.alertId != event.alertId).toList();
     emit(cur.copyWith(pendingAlerts: alerts));
+  }
+
+  void _onStop(StopPatients event, Emitter<PatientsState> emit) {
+    _pollSub?.cancel();
+    _pollSub = null;
+    _sseSub?.cancel();
+    _sseSub = null;
+    emit(const PatientsInitial());
   }
 
   // ── Poll handlers ─────────────────────────────────────────────────────────
