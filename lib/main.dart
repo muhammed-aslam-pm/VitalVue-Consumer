@@ -124,13 +124,17 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
+    return MultiRepositoryProvider(
       providers: [
-        BlocProvider.value(value: _authBloc),
-        BlocProvider.value(value: _bandBloc),
-        BlocProvider.value(value: _patientsBloc),
+        RepositoryProvider.value(value: _patientsRepo),
       ],
-      child: MaterialApp(
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: _authBloc),
+          BlocProvider.value(value: _bandBloc),
+          BlocProvider.value(value: _patientsBloc),
+        ],
+        child: MaterialApp(
         title: 'VitalVue Consumer',
         debugShowCheckedModeBanner: false,
         theme: _buildTheme(),
@@ -171,6 +175,7 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
           },
         ),
       ),
+    ),
     );
   }
 

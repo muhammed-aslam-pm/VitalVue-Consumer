@@ -80,3 +80,29 @@ class SseCriticalAlertEvent extends SseEvent {
         alertId: (json['alert_id'] ?? json['id'] ?? 0) as int,
       );
 }
+
+/// `event: ALERT_SNOOZED` inside `critical_alert` SSE
+class SseAlertSnoozedEvent extends SseEvent {
+  const SseAlertSnoozedEvent({required this.alertId, required this.patientId});
+  final int alertId;
+  final int patientId;
+  
+  factory SseAlertSnoozedEvent.fromJson(Map<String, dynamic> json) =>
+      SseAlertSnoozedEvent(
+        alertId: json['alert_id'] as int,
+        patientId: json['patient_id'] as int,
+      );
+}
+
+/// `event: ALERT_RESOLVED` inside `critical_alert` SSE
+class SseAlertResolvedEvent extends SseEvent {
+  const SseAlertResolvedEvent({required this.alertId, required this.patientId});
+  final int alertId;
+  final int patientId;
+  
+  factory SseAlertResolvedEvent.fromJson(Map<String, dynamic> json) =>
+      SseAlertResolvedEvent(
+        alertId: json['alert_id'] as int,
+        patientId: json['patient_id'] as int,
+      );
+}

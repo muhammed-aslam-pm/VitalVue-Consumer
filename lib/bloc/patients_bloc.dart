@@ -47,6 +47,13 @@ class _SseCriticalAlertReceived extends PatientsEvent {
   List<Object?> get props => [alert.alertId];
 }
 
+class _SseAlertDismissedReceived extends PatientsEvent {
+  const _SseAlertDismissedReceived(this.alertId);
+  final int alertId;
+  @override
+  List<Object?> get props => [alertId];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
@@ -65,6 +72,7 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     on<_SseConnectionChanged>(_onSseConnection);
     on<_SseVitalReceived>(_onSseVital);
     on<_SseCriticalAlertReceived>(_onSseAlert);
+    on<_SseAlertDismissedReceived>(_onSseAlertDismissed);
   }
 
   final PatientsRepository _repo;
@@ -195,6 +203,17 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     emit(cur.copyWith(pendingAlerts: [...cur.pendingAlerts, event.alert]));
   }
 
+  void _onSseAlertDismissed(
+      _SseAlertDismissedReceived event, Emitter<PatientsState> emit) {
+    if (state is! PatientsLoaded) return;
+    final cur = state as PatientsLoaded;
+    final alerts =
+        cur.pendingAlerts.where((a) => a.alertId != event.alertId).toList();
+    if (alerts.length != cur.pendingAlerts.length) {
+      emit(cur.copyWith(pendingAlerts: alerts));
+    }
+  }
+
   // ── Private helpers ───────────────────────────────────────────────────────
 
   void _startSse() {
@@ -210,6 +229,10 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
           add(_SseVitalReceived(ev));
         } else if (ev is SseCriticalAlertEvent) {
           add(_SseCriticalAlertReceived(ev));
+        } else if (ev is SseAlertSnoozedEvent) {
+          add(_SseAlertDismissedReceived(ev.alertId));
+        } else if (ev is SseAlertResolvedEvent) {
+          add(_SseAlertDismissedReceived(ev.alertId));
         }
       },
     );

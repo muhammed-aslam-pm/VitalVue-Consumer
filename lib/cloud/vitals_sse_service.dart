@@ -126,6 +126,11 @@ class VitalsSseService {
         case 'patient_vital_update':
           return SseVitalUpdateEvent.fromJson(json);
         case 'critical_alert':
+          if (json['event'] == 'ALERT_SNOOZED') {
+            return SseAlertSnoozedEvent.fromJson(json);
+          } else if (json['event'] == 'ALERT_RESOLVED') {
+            return SseAlertResolvedEvent.fromJson(json);
+          }
           return SseCriticalAlertEvent.fromJson(json);
         default:
           return null;

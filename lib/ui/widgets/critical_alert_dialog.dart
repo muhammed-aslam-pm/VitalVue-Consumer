@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../bloc/patients_bloc.dart';
 import '../../bloc/patients_event.dart';
 import '../../cloud/assigned_patient.dart';
 import '../../cloud/sse_events.dart';
+import '../../cloud/patients_repository.dart';
+import 'action_capture_dialog.dart';
 
-class CriticalAlertDialog extends StatelessWidget {
+class CriticalAlertDialog extends StatefulWidget {
   const CriticalAlertDialog({
     super.key,
     required this.alert,
@@ -19,8 +23,15 @@ class CriticalAlertDialog extends StatelessWidget {
   final AssignedPatient? patient; // null if patient not yet in list
   final VoidCallback onDismiss;
 
+  @override
+  State<CriticalAlertDialog> createState() => _CriticalAlertDialogState();
+}
+
+class _CriticalAlertDialogState extends State<CriticalAlertDialog> {
+  bool _isLoading = false;
+
   Color get _severityColor {
-    switch (alert.severity.toLowerCase()) {
+    switch (widget.alert.severity.toLowerCase()) {
       case 'critical':
         return const Color(0xFFE53935);
       case 'warning':
@@ -32,7 +43,7 @@ class CriticalAlertDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final vitals = patient?.latestVitals;
+    final vitals = widget.patient?.latestVitals;
     final color = _severityColor;
 
     return Dialog(
@@ -96,7 +107,7 @@ class CriticalAlertDialog extends StatelessWidget {
                 children: [
                   // Patient name
                   Text(
-                    patient?.fullName ?? 'Patient #${alert.patientId}',
+                    widget.patient?.fullName ?? 'Patient #${widget.alert.patientId}',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(
                       color: Colors.white,
@@ -111,18 +122,18 @@ class CriticalAlertDialog extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _Pill(
-                        label: 'Ward: ${alert.wardName}',
+                        label: 'Ward: ${widget.alert.wardName}',
                         color: const Color(0xFF1A73E8),
                       ),
                       const SizedBox(width: 8),
                       _Pill(
-                        label: 'Room No: ${alert.roomNumber}',
+                        label: 'Room No: ${widget.alert.roomNumber}',
                         color: const Color(0xFF7C4DFF),
                       ),
                     ],
                   ),
 
-                  if (alert.phoneNumber.isNotEmpty) ...[
+                  if (widget.alert.phoneNumber.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -132,7 +143,7 @@ class CriticalAlertDialog extends StatelessWidget {
                             size: 14),
                         const SizedBox(width: 6),
                         Text(
-                          alert.phoneNumber,
+                          widget.alert.phoneNumber,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.5),
                             fontSize: 13,
@@ -183,14 +194,14 @@ class CriticalAlertDialog extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              alert.vitalType,
+                              widget.alert.vitalType,
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.7),
                                 fontSize: 14,
                               ),
                             ),
                             Text(
-                              alert.triggeredValue,
+                              widget.alert.triggeredValue,
                               style: TextStyle(
                                 color: color,
                                 fontSize: 16,
@@ -229,7 +240,7 @@ class CriticalAlertDialog extends StatelessWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: onDismiss,
+                          onPressed: _isLoading ? null : _handleSnooze,
                           style: OutlinedButton.styleFrom(
                             foregroundColor:
                                 Colors.white.withValues(alpha: 0.6),
@@ -246,17 +257,27 @@ class CriticalAlertDialog extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: onDismiss,
+                          onPressed: _isLoading ? null : _handleTakeAction,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: color,
                             foregroundColor: Colors.white,
+                            disabledBackgroundColor: color.withValues(alpha: 0.5),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
                             elevation: 0,
                           ),
-                          child: const Text('TAKE ACTION',
-                              style: TextStyle(fontWeight: FontWeight.w700)),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('TAKE ACTION',
+                                  style: TextStyle(fontWeight: FontWeight.w700)),
                         ),
                       ),
                     ],
@@ -275,6 +296,51 @@ class CriticalAlertDialog extends StatelessWidget {
             duration: 300.ms,
             curve: Curves.easeOutBack)
         .fadeIn(duration: 200.ms);
+  }
+
+  Future<void> _handleSnooze() async {
+    setState(() => _isLoading = true);
+    try {
+      await context.read<PatientsRepository>().snoozeAlert(
+            patientId: widget.alert.patientId,
+            alertId: widget.alert.alertId,
+          );
+      if (mounted) widget.onDismiss();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to snooze: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleTakeAction() async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (_) => const ActionCaptureDialog(),
+    );
+    if (action != null && mounted) {
+      setState(() => _isLoading = true);
+      try {
+        await context.read<PatientsRepository>().takeAction(
+              patientId: widget.alert.patientId,
+              alertId: widget.alert.alertId,
+              actionType: action.startsWith('Other: ') ? 'Other Action' : action,
+              otherDetails: action.startsWith('Other: ') ? action.substring(7) : '',
+              performedAt: DateTime.now(),
+            );
+        if (mounted) widget.onDismiss();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to record action: $e')),
+          );
+          setState(() => _isLoading = false);
+        }
+      }
+    }
   }
 }
 

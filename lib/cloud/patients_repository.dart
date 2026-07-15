@@ -50,4 +50,27 @@ class PatientsRepository {
       await Future.delayed(interval);
     }
   }
+
+  /// Snoozes a critical alert for 10 minutes.
+  Future<void> snoozeAlert({required int patientId, required int alertId}) async {
+    final url = '${_baseUrl}api/v1/patients/patients/$patientId/alerts/$alertId/snooze';
+    await _dio.post(url);
+  }
+
+  /// Records an action taken by staff for a given alert.
+  Future<void> takeAction({
+    required int patientId,
+    required int alertId,
+    required String actionType,
+    String otherDetails = '',
+    required DateTime performedAt,
+  }) async {
+    final url = '${_baseUrl}api/v1/patients/patients/$patientId/action';
+    await _dio.post(url, data: {
+      'action_type': actionType,
+      'alert_id': alertId,
+      'other_details': otherDetails,
+      'performed_at': performedAt.toUtc().toIso8601String(),
+    });
+  }
 }
