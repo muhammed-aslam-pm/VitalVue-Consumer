@@ -11,7 +11,7 @@ import 'band_timing_logger.dart';
 
 // ── Timer constants — match Python band_session.py exactly ──────────────────
 const _watchdogTimeoutS = 90; // HR=0 for >90s → band removed
-const _spo2KickIntervalS = 120; // SpO2 spot-check every 120s
+const _spo2KickIntervalS = 300; // SpO2 spot-check every 300s
 const _spo2KickDurationS = 45; // SpO2 PPG window
 const _spo2SuppressWindowS = _spo2KickDurationS + 30; // suppress watchdog during PPG
 const _bpKickIntervalS = 300; // BP/HRV kick every 300s
@@ -202,9 +202,11 @@ class BandSessionService {
     await _initSequence();
 
     // Start the main loop and ingest loop.
-    _lastKickTime = DateTime.now();
-    _lastBpKickTime = DateTime.now();
-    _lastValidHrTime = DateTime.now();
+    final now = DateTime.now();
+    _lastKickTime = now.subtract(const Duration(seconds: _spo2KickIntervalS - 40));
+    _lastSpo2KickTime = _lastKickTime;
+    _lastBpKickTime = now;
+    _lastValidHrTime = now;
 
     _mainLoopTimer = Timer.periodic(
       const Duration(seconds: _loopTickS),
@@ -589,9 +591,11 @@ class BandSessionService {
         await Future.delayed(const Duration(seconds: 1));
         await _initSequence();
         
-        _lastKickTime = DateTime.now();
-        _lastBpKickTime = DateTime.now();
-        _lastValidHrTime = DateTime.now();
+        final now = DateTime.now();
+        _lastKickTime = now.subtract(const Duration(seconds: _spo2KickIntervalS - 40));
+        _lastSpo2KickTime = _lastKickTime;
+        _lastBpKickTime = now;
+        _lastValidHrTime = now;
         
         _mainLoopTimer = Timer.periodic(
           const Duration(seconds: _loopTickS),
