@@ -29,16 +29,16 @@ class PatientMonitorCard extends StatelessWidget {
     }
   }
 
-  static Color _severityBorderColor(int severity) {
+  static Color _severityBorderColor(int severity, BuildContext context) {
     if (severity == 2) return const Color(0xFFE53935).withValues(alpha: 0.7);
     if (severity == 1) return const Color(0xFFFFA726).withValues(alpha: 0.5);
-    return Colors.white.withValues(alpha: 0.06);
+    return Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.06);
   }
 
-  static Color _severityBgTint(int severity) {
+  static Color _severityBgTint(int severity, BuildContext context) {
     if (severity == 2) return const Color(0xFFE53935).withValues(alpha: 0.06);
     if (severity == 1) return const Color(0xFFFFA726).withValues(alpha: 0.04);
-    return const Color(0xFF1A1D27);
+    return Theme.of(context).colorScheme.surface;
   }
 
   @override
@@ -49,9 +49,9 @@ class PatientMonitorCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: _severityBgTint(severity),
+        color: _severityBgTint(severity, context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _severityBorderColor(severity)),
+        border: Border.all(color: _severityBorderColor(severity, context)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
@@ -127,7 +127,7 @@ class _Header extends StatelessWidget {
               Text(
                 patient.fullName.trim(),
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
@@ -136,7 +136,7 @@ class _Header extends StatelessWidget {
               Text(
                 'ID: ${patient.userId}  ·  Room ${patient.roomNo}',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   fontSize: 12,
                 ),
               ),
@@ -306,7 +306,7 @@ class _VitalChip extends StatelessWidget {
             Text(
               value,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
               ),
@@ -314,7 +314,7 @@ class _VitalChip extends StatelessWidget {
             Text(
               unit,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.4),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                 fontSize: 9,
               ),
             ),
@@ -339,12 +339,12 @@ class _StatusRow extends StatelessWidget {
         // Battery
         if (vitals.batteryPercent > 0) ...[
           Icon(Icons.battery_5_bar_rounded,
-              color: Colors.white.withValues(alpha: 0.4), size: 14),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), size: 14),
           const SizedBox(width: 3),
           Text(
             '${vitals.batteryPercent}%',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.4),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 11,
             ),
           ),
@@ -364,12 +364,12 @@ class _StatusRow extends StatelessWidget {
         // Stress
         if (vitals.stressLevel != 'N/A') ...[
           Icon(Icons.psychology_rounded,
-              color: Colors.white.withValues(alpha: 0.35), size: 13),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), size: 13),
           const SizedBox(width: 3),
           Text(
             vitals.stressLevel,
             style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 11),
           ),
         ],
         const Spacer(),
@@ -377,7 +377,7 @@ class _StatusRow extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -385,7 +385,7 @@ class _StatusRow extends StatelessWidget {
                 ? '…${vitals.deviceId.substring(vitals.deviceId.length - 12)}'
                 : vitals.deviceId,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.3),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 10,
               fontFamily: 'monospace',
             ),
@@ -402,12 +402,12 @@ class _NoDataRow extends StatelessWidget {
     return Row(
       children: [
         Icon(Icons.signal_wifi_off_rounded,
-            color: Colors.white.withValues(alpha: 0.2), size: 16),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2), size: 16),
         const SizedBox(width: 8),
         Text(
           'No vitals data available',
           style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
         ),
       ],
     );

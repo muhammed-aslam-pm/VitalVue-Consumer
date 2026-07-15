@@ -79,10 +79,10 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Register Patient'),
-          backgroundColor: const Color(0xFF0F1117),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           elevation: 0,
         ),
-        backgroundColor: const Color(0xFF0F1117),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: BlocConsumer<RegisterBloc, RegisterState>(
           listener: (context, state) {
             if (state.status == RegisterStatus.success) {
@@ -117,11 +117,11 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                             decoration: InputDecoration(
                               labelText: 'Gender',
                               filled: true,
-                              fillColor: Colors.white.withValues(alpha: 0.1),
+                              fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                             ),
-                            dropdownColor: const Color(0xFF1A1C24),
-                            style: const TextStyle(color: Colors.white),
+                            dropdownColor: Theme.of(context).colorScheme.surface,
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
                             items: const [
                               DropdownMenuItem(value: 'M', child: Text('Male')),
                               DropdownMenuItem(value: 'F', child: Text('Female')),
@@ -138,11 +138,11 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                       decoration: InputDecoration(
                         labelText: 'Blood Group',
                         filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.1),
+                        fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      dropdownColor: const Color(0xFF1A1C24),
-                      style: const TextStyle(color: Colors.white),
+                      dropdownColor: Theme.of(context).colorScheme.surface,
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
                       items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
                           .map((bg) => DropdownMenuItem(value: bg, child: Text(bg)))
                           .toList(),
@@ -201,7 +201,7 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
       ),
     );
   }
@@ -219,11 +219,11 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
         decoration: InputDecoration(
           labelText: label,
           filled: true,
-          fillColor: Colors.white.withValues(alpha: 0.1),
+          fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         ),
         keyboardType: keyboardType,
-        style: const TextStyle(color: Colors.white),
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         validator: required
             ? (value) => (value == null || value.isEmpty) ? 'Required' : null
             : null,
@@ -243,11 +243,11 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
       decoration: InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.1),
+        fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      dropdownColor: const Color(0xFF1A1C24),
-      style: const TextStyle(color: Colors.white),
+      dropdownColor: Theme.of(context).colorScheme.surface,
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
       items: isEmpty ? null : items.map((item) {
         final displayName = item['name'] ?? item['room_number'] ?? 'Unknown';
         return DropdownMenuItem<int>(

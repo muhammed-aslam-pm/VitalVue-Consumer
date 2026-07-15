@@ -34,12 +34,12 @@ class _ActionCaptureDialogState extends State<ActionCaptureDialog> {
       child: Container(
         width: 400,
         decoration: BoxDecoration(
-          color: const Color(0xFF141620),
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
+          border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 32,
               spreadRadius: 4,
             ),
@@ -58,19 +58,19 @@ class _ActionCaptureDialogState extends State<ActionCaptureDialog> {
                   Text(
                     'Action Capture',
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                    icon: Icon(Icons.close_rounded, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), size: 20),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: Colors.white10),
+            Divider(height: 1, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)),
             
             // Body
             Padding(
@@ -81,7 +81,7 @@ class _ActionCaptureDialogState extends State<ActionCaptureDialog> {
                   Text(
                     'Action Taken',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -99,19 +99,19 @@ class _ActionCaptureDialogState extends State<ActionCaptureDialog> {
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           decoration: BoxDecoration(
                             color: isSelected 
-                                ? const Color(0xFF2C2F3D)
-                                : const Color(0xFF1F222F),
+                                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                                : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: isSelected 
-                                  ? const Color(0xFF1A73E8) 
+                                  ? Theme.of(context).colorScheme.primary 
                                   : Colors.transparent,
                             ),
                           ),
                           child: Text(
                             action,
                             style: TextStyle(
-                              color: isSelected ? const Color(0xFF1A73E8) : Colors.white70,
+                              color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                               fontSize: 13,
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                             ),
@@ -125,12 +125,12 @@ class _ActionCaptureDialogState extends State<ActionCaptureDialog> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: _otherController,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: 'Describe the action...',
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                        hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
                         filled: true,
-                        fillColor: const Color(0xFF1F222F),
+                        fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -143,7 +143,7 @@ class _ActionCaptureDialogState extends State<ActionCaptureDialog> {
               ),
             ),
             
-            const Divider(height: 1, color: Colors.white10),
+            Divider(height: 1, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)),
             
             // Footer
             Padding(
@@ -154,8 +154,8 @@ class _ActionCaptureDialogState extends State<ActionCaptureDialog> {
                   OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white.withValues(alpha: 0.6),
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                      foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)),
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),

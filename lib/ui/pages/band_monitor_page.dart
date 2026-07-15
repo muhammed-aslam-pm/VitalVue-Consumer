@@ -107,7 +107,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1117),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           // Background gradient blobs
@@ -162,8 +162,8 @@ class _BandMonitorPageState extends State<BandMonitorPage>
             return FloatingActionButton.extended(
               onPressed: () =>
                   context.read<BandMonitorBloc>().add(const DisconnectBand()),
-              backgroundColor: const Color(0xFF242736),
-              foregroundColor: Colors.white70,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
               icon: const Icon(Icons.bluetooth_disabled_rounded),
               label: const Text('Disconnect'),
             );
@@ -196,7 +196,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
                 Text(
                   'VitalVue',
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
@@ -206,7 +206,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
                 Text(
                   isPatient ? 'JStyle JCV5' : (profile?.role ?? ''),
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                     fontSize: 12,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -231,7 +231,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
                   builder: (_) => ProfilePage(profile: profile),
                 ));
               },
-              icon: const Icon(Icons.person_rounded, color: Colors.white),
+              icon: Icon(Icons.person_rounded, color: Theme.of(context).colorScheme.onSurface),
               tooltip: 'Profile',
             ),
         ],
@@ -489,7 +489,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
                 : 'Scanning for JStyle devices…',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.55),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 15,
               height: 1.6,
             ),
@@ -507,7 +507,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           Icon(
             Icons.watch_rounded,
             size: 72,
-            color: Colors.white.withValues(alpha: 0.12),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
           )
               .animate(onPlay: (c) => c.repeat(reverse: true))
               .scale(
@@ -519,7 +519,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
           Text(
             'No Band Connected',
             style: GoogleFonts.inter(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 20,
               fontWeight: FontWeight.w700,
             ),
@@ -529,7 +529,7 @@ class _BandMonitorPageState extends State<BandMonitorPage>
             'Tap the button below to scan\nfor your JStyle JCV5 band.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.35),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 14,
               height: 1.6,
             ),
@@ -730,7 +730,7 @@ class _OffWristBanner extends StatelessWidget {
                     Text(
                       'No heart rate signal for >100 seconds. Please reapply sensor.',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                         fontSize: 12,
                       ),
                     ),
@@ -773,7 +773,7 @@ class _InfoBanner extends StatelessWidget {
             child: Text(
               message,
               style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.75), fontSize: 13),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8), fontSize: 13),
             ),
           ),
         ],

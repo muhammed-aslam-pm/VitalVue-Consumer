@@ -36,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1117),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           _BackgroundBlobs(),
@@ -112,7 +112,7 @@ class _LoginPageState extends State<LoginPage> {
         Text(
           'VitalVue Consumer',
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 28,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
@@ -122,7 +122,7 @@ class _LoginPageState extends State<LoginPage> {
         Text(
           'VitalVue Healthcare Platform',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.4),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
             fontSize: 14,
           ),
         ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
@@ -149,9 +149,9 @@ class _LoginPageState extends State<LoginPage> {
         child: Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)),
           ),
           child: AnimatedSwitcher(
             duration: 350.ms,
@@ -186,7 +186,7 @@ class _LoginPageState extends State<LoginPage> {
         Text(
           'Staff Login',
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 20,
             fontWeight: FontWeight.w700,
           ),
@@ -195,7 +195,7 @@ class _LoginPageState extends State<LoginPage> {
         Text(
           'Enter your Staff / Nurse / Doctor ID to receive an OTP.',
           style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.45), fontSize: 13),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
         ),
         const SizedBox(height: 24),
         _AuthField(
@@ -228,10 +228,10 @@ class _LoginPageState extends State<LoginPage> {
               ),
             );
           },
-          icon: const Icon(Icons.person_add_rounded, size: 18, color: Colors.white70),
-          label: const Text(
+          icon: Icon(Icons.person_add_rounded, size: 18, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+          label: Text(
             'Register Patient',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 14),
           ),
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -265,14 +265,14 @@ class _LoginPageState extends State<LoginPage> {
                   ? null
                   : () => context.read<AuthBloc>().add(const AuthLogout()),
               child: Icon(Icons.arrow_back_rounded,
-                  color: Colors.white.withValues(alpha: 0.5), size: 20),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5), size: 20),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Enter OTP',
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                 ),
@@ -284,7 +284,7 @@ class _LoginPageState extends State<LoginPage> {
         RichText(
           text: TextSpan(
             style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.45), fontSize: 13),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
             children: [
               const TextSpan(text: 'An OTP was sent to the contact registered for '),
               TextSpan(
@@ -383,22 +383,22 @@ class _AuthField extends StatelessWidget {
       maxLength: maxLength,
       onSubmitted: onSubmitted,
       inputFormatters: inputFormatters,
-      style: const TextStyle(color: Colors.white, fontSize: 16),
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 16),
       decoration: InputDecoration(
         counterText: '',
         labelText: label,
         hintText: hint,
         prefixIcon: Icon(icon, color: const Color(0xFF1A73E8), size: 20),
         labelStyle:
-            TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+            TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 14),
         hintStyle:
-            TextStyle(color: Colors.white.withValues(alpha: 0.25), fontSize: 14),
+            TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), fontSize: 14),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.05),
+        fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide:
-              BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+              BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

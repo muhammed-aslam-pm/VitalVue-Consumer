@@ -46,7 +46,7 @@ void main() async {
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
+    statusBarIconBrightness: Brightness.dark,
   ));
   runApp(const JBandMonitorApp());
 }
@@ -181,15 +181,15 @@ class _JBandMonitorAppState extends State<JBandMonitorApp> {
 
   ThemeData _buildTheme() {
     return ThemeData(
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF0F1117),
-      colorScheme: const ColorScheme.dark(
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+      colorScheme: const ColorScheme.light(
         primary: Color(0xFF1A73E8),
         secondary: Color(0xFF00BFA5),
-        surface: Color(0xFF1A1D27),
+        surface: Colors.white,
         error: Color(0xFFE53935),
       ),
-      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+      textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
       useMaterial3: true,
     );
   }
@@ -202,7 +202,7 @@ class _SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Color(0xFF0F1117),
+      backgroundColor: Color(0xFFF5F7FA),
       body: Center(
         child: CircularProgressIndicator(
           color: Color(0xFF1A73E8),

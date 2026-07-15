@@ -36,7 +36,7 @@ class VitalCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: isAlert
               ? const Color(0x33E53935)
-              : const Color(0x1AFFFFFF),
+              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isAlert
@@ -71,7 +71,7 @@ class VitalCard extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.65),
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
@@ -90,7 +90,7 @@ class VitalCard extends StatelessWidget {
                   Text(
                     value,
                     style: TextStyle(
-                      color: isAlert ? const Color(0xFFFF6B6B) : Colors.white,
+                      color: isAlert ? const Color(0xFFFF6B6B) : Theme.of(context).colorScheme.onSurface,
                       fontSize: 42,
                       fontWeight: FontWeight.w800,
                       height: 1.0,
@@ -120,7 +120,7 @@ class VitalCard extends StatelessWidget {
               Text(
                 subtitle!,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   fontSize: 11,
                 ),
               ),

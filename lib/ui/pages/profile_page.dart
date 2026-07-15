@@ -55,13 +55,13 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final profile = widget.profile;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1117),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
           '$_roleLabel Profile',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
         ),
       ),
       body: SingleChildScrollView(
@@ -89,7 +89,7 @@ class _ProfilePageState extends State<ProfilePage> {
               style: GoogleFonts.inter(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             // Role badge
@@ -115,7 +115,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             Text(
               'ID: ${profile.userId}',
-              style: const TextStyle(fontSize: 14, color: Colors.white54),
+              style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
             ),
             const SizedBox(height: 32),
 
@@ -186,13 +186,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     activeColor: const Color(0xFF1A73E8),
-                    title: const Text(
+                    title: Text(
                       'Voice Announcements',
-                      style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 15, fontWeight: FontWeight.w500),
                     ),
-                    subtitle: const Text(
+                    subtitle: Text(
                       'Verbal read-out of critical alerts',
-                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
                     ),
                     value: _enableTts,
                     onChanged: (val) async {
@@ -206,13 +206,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     activeColor: const Color(0xFF1A73E8),
-                    title: const Text(
+                    title: Text(
                       'Push Notifications',
-                      style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 15, fontWeight: FontWeight.w500),
                     ),
-                    subtitle: const Text(
+                    subtitle: Text(
                       'Heads-up banners for critical alerts',
-                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
                     ),
                     value: _enablePush,
                     onChanged: (val) async {
@@ -260,9 +260,9 @@ class _ProfilePageState extends State<ProfilePage> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1D27),
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +272,7 @@ class _ProfilePageState extends State<ProfilePage> {
             style: GoogleFonts.inter(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 16),
@@ -290,12 +290,12 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           Text(label,
               style:
-                  const TextStyle(fontSize: 15, color: Colors.white54)),
+                  TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
           Text(value,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
-                  color: Colors.white)),
+                  color: Theme.of(context).colorScheme.onSurface)),
         ],
       ),
     );

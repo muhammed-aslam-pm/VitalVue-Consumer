@@ -51,7 +51,7 @@ class _CriticalAlertDialogState extends State<CriticalAlertDialog> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF141620),
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: color.withValues(alpha: 0.5), width: 1.5),
           boxShadow: [
@@ -110,7 +110,7 @@ class _CriticalAlertDialogState extends State<CriticalAlertDialog> {
                     widget.patient?.fullName ?? 'Patient #${widget.alert.patientId}',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                     ),
@@ -139,13 +139,13 @@ class _CriticalAlertDialogState extends State<CriticalAlertDialog> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.phone_rounded,
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                             size: 14),
                         const SizedBox(width: 6),
                         Text(
                           widget.alert.phoneNumber,
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                             fontSize: 13,
                           ),
                         ),
@@ -196,7 +196,7 @@ class _CriticalAlertDialogState extends State<CriticalAlertDialog> {
                             Text(
                               widget.alert.vitalType,
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                                 fontSize: 14,
                               ),
                             ),
@@ -222,7 +222,7 @@ class _CriticalAlertDialogState extends State<CriticalAlertDialog> {
                       child: Text(
                         'CURRENT VITALS',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.35),
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1.5,
@@ -243,9 +243,9 @@ class _CriticalAlertDialogState extends State<CriticalAlertDialog> {
                           onPressed: _isLoading ? null : _handleSnooze,
                           style: OutlinedButton.styleFrom(
                             foregroundColor:
-                                Colors.white.withValues(alpha: 0.6),
+                                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                             side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.2)),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
@@ -460,7 +460,7 @@ class _VitalBox extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.4),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 9,
               fontWeight: FontWeight.w600,
             ),
@@ -477,7 +477,7 @@ class _VitalBox extends StatelessWidget {
           Text(
             unit,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.35),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 9,
             ),
           ),

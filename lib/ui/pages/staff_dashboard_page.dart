@@ -72,7 +72,7 @@ class _StaffDashboardPageState extends State<StaffDashboardPage> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0F1117),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Stack(
         children: [
           // Background blobs
@@ -164,7 +164,7 @@ class _AppBar extends StatelessWidget {
                 Text(
                   'VitalVue',
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
@@ -174,7 +174,7 @@ class _AppBar extends StatelessWidget {
                   Text(
                     '${_roleLabel(profile!.role)} Dashboard',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.4),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                       fontSize: 12,
                     ),
                   ),
@@ -199,7 +199,7 @@ class _AppBar extends StatelessWidget {
                   builder: (_) => ProfilePage(profile: profile!),
                 ),
               ),
-              icon: const Icon(Icons.person_rounded, color: Colors.white),
+              icon: Icon(Icons.person_rounded, color: Theme.of(context).colorScheme.onSurface),
               tooltip: 'Profile',
             ),
         ],
@@ -293,7 +293,7 @@ class _SummaryBar extends StatelessWidget {
           Text(
             '${patients.length} patient${patients.length == 1 ? '' : 's'}',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.35),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 12,
             ),
           ),
@@ -376,12 +376,12 @@ class _PatientList extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.people_outline_rounded,
-                size: 64, color: Colors.white.withValues(alpha: 0.1)),
+                size: 64, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)),
             const SizedBox(height: 16),
             Text(
               'No patients assigned',
               style: GoogleFonts.inter(
-                color: Colors.white.withValues(alpha: 0.4),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                 fontSize: 16,
               ),
             ),
@@ -397,7 +397,7 @@ class _PatientList extends StatelessWidget {
         RefreshIndicator(
           onRefresh: onRefresh,
           color: const Color(0xFF1A73E8),
-          backgroundColor: const Color(0xFF1A1D27),
+          backgroundColor: Theme.of(context).colorScheme.surface,
           child: ListView.builder(
             padding: const EdgeInsets.only(top: 4, bottom: 24),
             itemCount: sorted.length,
@@ -463,7 +463,7 @@ class _LoadingView extends StatelessWidget {
           Text(
             'Loading patients…',
             style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 14),
           ),
         ],
       ),
@@ -490,7 +490,7 @@ class _ErrorView extends StatelessWidget {
             Text(
               'Could not load patients',
               style: GoogleFonts.inter(
-                  color: Colors.white.withValues(alpha: 0.7),
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w700),
             ),
@@ -499,7 +499,7 @@ class _ErrorView extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.35), fontSize: 13),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
             ),
             const SizedBox(height: 28),
             OutlinedButton.icon(

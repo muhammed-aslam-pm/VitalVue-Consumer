@@ -14,9 +14,9 @@ class DeviceScanSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1D27),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
       child: Column(
@@ -30,15 +30,15 @@ class DeviceScanSheet extends StatelessWidget {
               height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-          const Text(
+          Text(
             'Nearby JStyle Devices',
             style: TextStyle(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 20,
               fontWeight: FontWeight.w700,
             ),
@@ -47,7 +47,7 @@ class DeviceScanSheet extends StatelessWidget {
           Text(
             'Scanning for JCV5 / JStyle smartbands…',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.45),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 13,
             ),
           ),
@@ -66,7 +66,7 @@ class DeviceScanSheet extends StatelessWidget {
                         Text(
                           'Looking for devices…',
                           style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.55),
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                               fontSize: 14),
                         ),
                       ],
@@ -82,7 +82,7 @@ class DeviceScanSheet extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: results.length,
                 separatorBuilder: (_, __) => Divider(
-                  color: Colors.white.withValues(alpha: 0.08),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                   height: 1,
                 ),
                 itemBuilder: (context, i) {
@@ -107,8 +107,8 @@ class DeviceScanSheet extends StatelessWidget {
                     ),
                     title: Text(
                       name,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
                       ),
@@ -116,7 +116,7 @@ class DeviceScanSheet extends StatelessWidget {
                     subtitle: Text(
                       '${r.device.remoteId.str}  •  $rssi dBm',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.4),
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                         fontSize: 12,
                       ),
                     ),
@@ -150,8 +150,8 @@ class DeviceScanSheet extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton(
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white70,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(vertical: 14),

@@ -59,19 +59,19 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1117),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text('${widget.title} History (24h)'),
-        foregroundColor: Colors.white,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.blue))
           : _vitalsData.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text('No data recorded in the last 24 hours.',
-                      style: TextStyle(color: Colors.white54)))
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))))
               : Column(
                   children: [
                     _buildChartSection(),
@@ -93,7 +93,7 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
             drawVerticalLine: false,
             getDrawingHorizontalLine: (value) {
               return FlLine(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                 strokeWidth: 1,
               );
             },
@@ -113,7 +113,7 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
                     padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
                       DateFormat('HH:mm').format(date),
-                      style: const TextStyle(color: Colors.white54, fontSize: 10),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 10),
                     ),
                   );
                 },
@@ -126,7 +126,7 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
                 getTitlesWidget: (value, meta) {
                   return Text(
                     value.toInt().toString(),
-                    style: const TextStyle(color: Colors.white54, fontSize: 10),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 10),
                     textAlign: TextAlign.left,
                   );
                 },
@@ -177,14 +177,14 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
 
   Widget _buildListSection() {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1D27),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: _vitalsData.length,
-        separatorBuilder: (context, index) => Divider(color: Colors.white.withValues(alpha: 0.05)),
+        separatorBuilder: (context, index) => Divider(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)),
         itemBuilder: (context, index) {
           // reverse list so newest is on top
           final data = _vitalsData[_vitalsData.length - 1 - index];
@@ -202,17 +202,17 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
               ),
               child: Icon(
                 isIngested ? Icons.cloud_done : Icons.cloud_upload,
-                color: isIngested ? widget.accentColor : Colors.white54,
+                color: isIngested ? widget.accentColor : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                 size: 20,
               ),
             ),
             title: Text(
               '$value ${widget.unit}',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600, fontSize: 16),
             ),
             subtitle: Text(
               DateFormat('MMM d, yyyy - HH:mm:ss').format(date),
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
             ),
             trailing: Text(
               isIngested ? 'Synced' : 'Pending',
