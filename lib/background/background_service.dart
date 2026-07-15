@@ -113,19 +113,23 @@ void onStart(ServiceInstance service) async {
       if (event is SseCriticalAlertEvent) {
         final enableTts = await BackgroundPreferences.getEnableTts();
         final enablePush = await BackgroundPreferences.getEnablePush();
+        
+        final patientNames = await BackgroundPreferences.getPatientNames();
+        final pName = patientNames[event.patientId];
+        final nameTxt = pName != null ? pName : 'Patient ${event.patientId}';
 
         final hasRoom = event.roomNumber.isNotEmpty;
 
         if (enableTts) {
-          final roomTxt = hasRoom ? ' in ${event.wardName}, Room ${event.roomNumber}' : ' for Patient ${event.patientId}';
-          flutterTts.speak('Critical Alert. ${event.vitalType}$roomTxt.');
+          final roomTxt = hasRoom ? ' in ${event.wardName}, Room ${event.roomNumber}' : '';
+          flutterTts.speak('Critical Alert for $nameTxt. ${event.vitalType}$roomTxt.');
         }
         
         if (enablePush) {
-          final roomTxtPush = hasRoom ? ' (${event.wardName} - Rm ${event.roomNumber})' : ' (Patient ${event.patientId})';
+          final roomTxtPush = hasRoom ? ' (${event.wardName} - Rm ${event.roomNumber})' : '';
           flutterLocalNotificationsPlugin.show(
             id: event.alertId,
-            title: 'Critical Alert: ${event.vitalType}$roomTxtPush',
+            title: 'Critical Alert: ${event.vitalType} ($nameTxt$roomTxtPush)',
             body: 'Value triggered: ${event.triggeredValue} (${event.severity})',
             notificationDetails: const NotificationDetails(
               android: AndroidNotificationDetails(

@@ -7,6 +7,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../ble/band_ble_client.dart';
 import '../protocol/jstyle_codec.dart';
 import '../db/vitals_database.dart';
+import 'band_timing_logger.dart';
 
 // ── Timer constants — match Python band_session.py exactly ──────────────────
 const _watchdogTimeoutS = 90; // HR=0 for >90s → band removed
@@ -146,6 +147,17 @@ class BandSessionService {
   BluetoothDevice? _device;
   bool _isAutoReconnecting = false;
 
+  // ── Timing instrumentation ──────────────────────────────────────────────────
+  DateTime? _connectTime;
+  DateTime? _lastVitalsTime;
+  bool _firstHr = true;
+  bool _firstSpo2 = true;
+  bool _firstTemp = true;
+  bool _firstBp = true;
+  bool _firstBattery = true;
+  late final BandTimingLogger _timingLogger;
+  // ── End timing ──────────────────────────────────────────────────────────────
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   Future<bool> connect(BluetoothDevice device) async {
@@ -161,6 +173,14 @@ class BandSessionService {
       ));
       return false;
     }
+
+    _connectTime = DateTime.now();
+    _firstHr = true; _firstSpo2 = true; _firstTemp = true;
+    _firstBp = true; _firstBattery = true; _lastVitalsTime = null;
+    _timingLogger = BandTimingLogger(deviceId: deviceId);
+    await _timingLogger.open();
+    _timingLogger.log('connected', sinceConnectMs: 0, intervalMs: null);
+    debugPrint('[$deviceId] ⏱ Connected at $_connectTime');
 
     _emit(_state.copyWith(
       connectionStatus: BleConnectionStatus.connected,
@@ -208,6 +228,7 @@ class BandSessionService {
     await _ble.disconnect();
     _emit(_state.copyWith(connectionStatus: BleConnectionStatus.disconnected));
     await _runIngest(); // Immediately push disconnected status to cloud and wait for it
+    await _timingLogger.close();
   }
 
   void dispose() {
@@ -386,6 +407,46 @@ class BandSessionService {
         );
 
         _emit(next);
+
+        // ── Timing logs ────────────────────────────────────────────────────
+        final now = DateTime.now();
+        final sinceConnect = _connectTime != null
+            ? now.difference(_connectTime!).inMilliseconds
+            : -1;
+
+        if (_firstHr && next.hr > 0) {
+          _firstHr = false;
+          debugPrint('[$deviceId] ⏱ First HR (${next.hr} bpm) received ${sinceConnect}ms after connect');
+          _timingLogger.log('first_hr', sinceConnectMs: sinceConnect, intervalMs: null, hr: next.hr, tempC: next.tempC);
+        }
+        if (_firstSpo2 && next.spo2 > 0) {
+          _firstSpo2 = false;
+          debugPrint('[$deviceId] ⏱ First SpO2 (${next.spo2}%) received ${sinceConnect}ms after connect');
+          _timingLogger.log('first_spo2', sinceConnectMs: sinceConnect, intervalMs: null, spo2: next.spo2);
+        }
+        if (_firstTemp && next.tempC > 0) {
+          _firstTemp = false;
+          debugPrint('[$deviceId] ⏱ First Temp (${next.tempC}°C) received ${sinceConnect}ms after connect');
+          _timingLogger.log('first_temp', sinceConnectMs: sinceConnect, intervalMs: null, tempC: next.tempC);
+        }
+
+        if (_lastVitalsTime != null) {
+          final intervalMs = now.difference(_lastVitalsTime!).inMilliseconds;
+          debugPrint('[$deviceId] ⏱ VITALS interval: ${intervalMs}ms  '
+              'HR=${next.hr} SpO2=${next.spo2} Temp=${next.tempC}°C');
+          _timingLogger.log('vitals_interval',
+              sinceConnectMs: sinceConnect,
+              intervalMs: intervalMs,
+              hr: next.hr,
+              spo2: next.spo2,
+              tempC: next.tempC);
+        } else {
+          debugPrint('[$deviceId] ⏱ First VITALS update at ${sinceConnect}ms after connect');
+          _timingLogger.log('first_vitals', sinceConnectMs: sinceConnect, intervalMs: null, hr: next.hr, spo2: next.spo2, tempC: next.tempC);
+        }
+        _lastVitalsTime = now;
+        // ── End timing logs ────────────────────────────────────────────────
+
         // Mirror Python: log.info("[%s] HR=%d SpO2=%d temp=%.1f | Removed: %s")
         debugPrint('[$deviceId] VITALS  HR=${next.hr} bpm  '
             'SpO2=${next.spo2}%  Temp=${next.tempC}°C  '
@@ -404,6 +465,15 @@ class BandSessionService {
             isRemoved: false,
             clearError: true,
           ));
+          if (_firstBp) {
+            _firstBp = false;
+            final sinceConnect = _connectTime != null
+                ? DateTime.now().difference(_connectTime!).inMilliseconds
+                : -1;
+            debugPrint('[$deviceId] ⏱ First BP ($systolic/$diastolic mmHg) received ${sinceConnect}ms after connect');
+            _timingLogger.log('first_bp', sinceConnectMs: sinceConnect, intervalMs: null,
+                note: '${systolic}/${diastolic}mmHg hrv:$hrv stress:$stress');
+          }
           debugPrint('[$deviceId] BP received: $systolic/$diastolic mmHg, HRV: $hrv, Stress: $stress');
         }
 
@@ -413,6 +483,14 @@ class BandSessionService {
 
       case BatteryEvent(:final percent):
         _emit(_state.copyWith(battery: percent));
+        if (_firstBattery) {
+          _firstBattery = false;
+          final sinceConnect = _connectTime != null
+              ? DateTime.now().difference(_connectTime!).inMilliseconds
+              : -1;
+          debugPrint('[$deviceId] ⏱ First Battery ($percent%) received ${sinceConnect}ms after connect');
+          _timingLogger.log('first_battery', sinceConnectMs: sinceConnect, intervalMs: null, note: '${percent}%');
+        }
         debugPrint('[$deviceId] BATTERY  $percent%');
 
       case UnknownEvent(:final dataType, :final raw):

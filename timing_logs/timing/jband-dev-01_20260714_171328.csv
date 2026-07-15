@@ -1,0 +1,5 @@
+timestamp_ms,event,device_id,since_connect_ms,interval_ms,hr,spo2,temp_c,note
+1784029408902,connected,jband-dev-01,0,,0,0,0.0,
+1784029409990,first_temp,jband-dev-01,1202,,0,0,32.2,
+1784029409991,first_vitals,jband-dev-01,1202,,0,0,32.2,
+1784029410410,first_battery,jband-dev-01,1622,,0,0,0.0,16%

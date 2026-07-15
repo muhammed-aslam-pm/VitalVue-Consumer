@@ -9,6 +9,7 @@ class BackgroundPreferences {
   static const _kDeviceName = 'bg_device_name';
   static const _kEnableTTS = 'bg_enable_tts';
   static const _kEnablePush = 'bg_enable_push';
+  static const _kPatientNames = 'bg_patient_names';
 
   static Future<void> saveProfile(UserProfile profile) async {
     final prefs = await SharedPreferences.getInstance();
@@ -78,5 +79,26 @@ class BackgroundPreferences {
   static Future<void> setEnablePush(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kEnablePush, value);
+  }
+
+  static Future<void> savePatientNames(Map<int, String> names) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _kPatientNames,
+      jsonEncode(names.map((k, v) => MapEntry(k.toString(), v))),
+    );
+  }
+
+  static Future<Map<int, String>> getPatientNames() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final str = prefs.getString(_kPatientNames);
+    if (str == null) return {};
+    try {
+      final map = jsonDecode(str) as Map<String, dynamic>;
+      return map.map((k, v) => MapEntry(int.parse(k), v.toString()));
+    } catch (_) {
+      return {};
+    }
   }
 }

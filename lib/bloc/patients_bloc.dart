@@ -6,6 +6,7 @@ import '../cloud/assigned_patient.dart';
 import '../cloud/patients_repository.dart';
 import '../cloud/sse_events.dart';
 import '../cloud/vitals_sse_service.dart';
+import '../background/background_preferences.dart';
 import 'patients_event.dart';
 import 'patients_state.dart';
 
@@ -82,6 +83,7 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
       print('PatientsBloc: Fetching assigned patients...');
       final patients = await _repo.fetchAssigned();
       print('PatientsBloc: Fetched ${patients.length} patients');
+      _cachePatientNames(patients);
       emit(PatientsLoaded(patients));
     } catch (e) {
       print('PatientsBloc: Fetch error: $e');
@@ -104,6 +106,7 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
 
     try {
       final patients = await _repo.fetchAssigned();
+      _cachePatientNames(patients);
       if (state is PatientsLoaded) {
         // Merge liveVitals back so SSE data isn't lost on refresh
         final cur = state as PatientsLoaded;
@@ -154,6 +157,7 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
       final live = liveMap[p.id];
       return live != null ? p.withLiveVitals(live) : p;
     }).toList();
+    _cachePatientNames(merged);
     emit(cur.copyWith(patients: merged));
   }
 
@@ -232,5 +236,11 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     await _sseSub?.cancel();
     await _pollSub?.cancel();
     return super.close();
+  }
+
+  void _cachePatientNames(List<AssignedPatient> patients) {
+    BackgroundPreferences.savePatientNames(
+      Map.fromEntries(patients.map((p) => MapEntry(p.id, p.fullName))),
+    );
   }
 }
