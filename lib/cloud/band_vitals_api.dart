@@ -17,14 +17,14 @@ class BandVitalsApi {
       receiveTimeout: const Duration(seconds: 20),
       headers: {'Content-Type': 'application/json'},
     ));
-    // _dio.interceptors.add(LogInterceptor(
-    //   request: true,
-    //   requestHeader: true,
-    //   requestBody: true,
-    //   responseHeader: false,
-    //   responseBody: true,
-    //   error: true,
-    // ));
+    _dio.interceptors.add(LogInterceptor(
+      request: true,
+      requestHeader: true,
+      requestBody: true,
+      responseHeader: false,
+      responseBody: true,
+      error: true,
+    ));
     if (authInterceptor != null) {
       _dio.interceptors.add(authInterceptor);
     }
@@ -95,6 +95,24 @@ class BandVitalsApi {
         // ignore: avoid_print
         print('[Cloud] ✗ Ingest failed (Error: ${e.message})');
       }
+      return false;
+    }
+  }
+
+  /// Assigns a new device to the current patient.
+  /// Endpoint: POST /api/v1/patients/me/change-device
+  Future<bool> changeDevice(String newDeviceId) async {
+    final url = '${_baseUrl}api/v1/patients/me/change-device';
+    // ignore: avoid_print
+    print('[Cloud] Attempting to change device to: $newDeviceId');
+    try {
+      final resp = await _dio.post(url, data: {
+        'new_device_id': newDeviceId,
+      });
+      return resp.statusCode != null && resp.statusCode! < 300;
+    } on DioException catch (e) {
+      // ignore: avoid_print
+      print('[Cloud] ✗ changeDevice failed: ${e.message}');
       return false;
     }
   }

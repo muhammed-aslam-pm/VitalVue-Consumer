@@ -381,7 +381,29 @@ void onStart(ServiceInstance service) async {
       }
     });
 
-    await session!.connect(device);
+    final connected = await session!.connect(device);
+    if (connected) {
+      try {
+        final store = AuthTokenStore();
+        final repo = AuthRepository(
+            baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
+        final interceptor =
+            AuthInterceptor(store: store, repository: repo, onLogout: () {});
+        final api = BandVitalsApi(
+          baseUrl: 'https://vitalvue-api.genesysailabs.com',
+          authInterceptor: interceptor,
+        );
+        api.changeDevice(deviceId).then((success) {
+          if (success) {
+            // ignore: avoid_print
+            print('[Background] Successfully registered device $deviceId to patient');
+          }
+        }).catchError((e) {
+          // ignore: avoid_print
+          print('[Background] Error calling changeDevice: $e');
+        });
+      } catch (_) {}
+    }
   });
 
   // Check if we have a saved device to reconnect automatically on boot
