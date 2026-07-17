@@ -178,13 +178,19 @@ class AssignedPatient {
     );
   }
 
-  /// Returns live SSE vitals if available, otherwise the last history entry.
-  PatientVitalsSnapshot? get latestVitals =>
-      liveVitals ?? (vitalsHistory.isEmpty ? null : vitalsHistory.last);
+  /// Returns live SSE vitals if available. If no live data and the device
+  /// is disconnected, returns null so stale vitals aren't used.
+  PatientVitalsSnapshot? get latestVitals {
+    if (liveVitals != null) return liveVitals;
+    if (!isConnected) return null;
+    return vitalsHistory.isEmpty ? null : vitalsHistory.last;
+  }
 
   /// Latest history entry where the device was connected.
+  /// If currently disconnected and no live stream, returns null.
   PatientVitalsSnapshot? get latestConnectedVitals {
     if (liveVitals != null) return liveVitals;
+    if (!isConnected) return null;
     for (final v in vitalsHistory.reversed) {
       if (v.isConnected) return v;
     }
