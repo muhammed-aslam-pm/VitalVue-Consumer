@@ -16,6 +16,8 @@ import '../db/vitals_database.dart';
 import '../cloud/vitals_sse_service.dart';
 import '../cloud/sse_events.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:vibration/vibration.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
@@ -35,6 +37,7 @@ Future<void> initializeBackgroundService() async {
     importance: Importance.max,
     playSound: true,
     enableVibration: true,
+    sound: RawResourceAndroidNotificationSound('warning_beep'),
   );
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -109,20 +112,55 @@ void onStart(ServiceInstance service) async {
     await flutterTts.setVolume(1.0);
     await flutterTts.setSpeechRate(0.5);
 
+    // ── Alert pre-feedback: long vibration + warning beep ────────────────
+    // Plays vibration and the bundled warning beep concurrently, then holds
+    // 700 ms so users hear: [buzz + beep] → voice announcement.
+    Future<void> triggerAlertFeedback() async {
+      await Future.wait([
+        // 1. Long double-buzz: 700 ms on, 150 ms off, 700 ms on.
+        () async {
+          try {
+            final hasVibrator = await Vibration.hasVibrator();
+            if (hasVibrator == true) {
+              await Vibration.vibrate(pattern: [0, 700, 150, 700]);
+            }
+          } catch (_) {}
+        }(),
+        // 2. Play the bundled triple-beep warning tone (not phone ringtone).
+        () async {
+          try {
+            final player = AudioPlayer();
+            await player.setVolume(1.0);
+            await player.play(AssetSource('sounds/warning_beep.wav'));
+            // Wait for the beep to finish (~800 ms) then release.
+            await Future.delayed(const Duration(milliseconds: 900));
+            await player.dispose();
+          } catch (_) {}
+        }(),
+      ]);
+      // Brief pause so TTS voice doesn't overlap the beep tail.
+      await Future.delayed(const Duration(milliseconds: 700));
+    }
+
     final sseSubscription = sseService.connect().listen((event) async {
       if (event is SseCriticalAlertEvent) {
         final enableTts = await BackgroundPreferences.getEnableTts();
         final enablePush = await BackgroundPreferences.getEnablePush();
-        
+
         final patientNames = await BackgroundPreferences.getPatientNames();
         final pName = patientNames[event.patientId];
-        final nameTxt = pName != null ? pName : 'Patient ${event.patientId}';
+        final nameTxt = pName ?? 'Patient ${event.patientId}';
 
         final hasRoom = event.roomNumber.isNotEmpty;
+        final roomTxtTts =
+            hasRoom ? ' in ${event.wardName}, Room ${event.roomNumber}' : '';
+
+        // ── Pre-announcement: long vibration + warning beep ──
+        // Always fires regardless of TTS/push settings.
+        await triggerAlertFeedback();
 
         if (enableTts) {
-          final roomTxt = hasRoom ? ' in ${event.wardName}, Room ${event.roomNumber}' : '';
-          flutterTts.speak('Critical Alert for $nameTxt. ${event.vitalType}$roomTxt.');
+          flutterTts.speak('Critical Alert for $nameTxt. ${event.vitalType}$roomTxtTts.');
         }
         
         if (enablePush) {
@@ -138,8 +176,9 @@ void onStart(ServiceInstance service) async {
                 icon: 'ic_bg_service_small',
                 importance: Importance.max,
                 priority: Priority.max,
-                enableVibration: true,
+                enableVibration: false, // vibration handled separately
                 playSound: true,
+                sound: RawResourceAndroidNotificationSound('warning_beep'),
               ),
             ),
           );
