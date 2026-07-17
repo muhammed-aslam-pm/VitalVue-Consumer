@@ -7,6 +7,8 @@ abstract class RegisterEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+class RegisterInitialize extends RegisterEvent {}
+
 class RegisterSearchOrganizations extends RegisterEvent {
   final String country;
   final String state;
@@ -66,6 +68,7 @@ class RegisterSubmit extends RegisterEvent {
   final String gender;
   final String bloodGroup;
   final String deviceId;
+  final String? preCondition;
 
   const RegisterSubmit({
     required this.userId,
@@ -76,6 +79,7 @@ class RegisterSubmit extends RegisterEvent {
     required this.gender,
     required this.bloodGroup,
     required this.deviceId,
+    this.preCondition,
   });
 
   @override
@@ -88,5 +92,6 @@ class RegisterSubmit extends RegisterEvent {
         gender,
         bloodGroup,
         deviceId,
+        preCondition,
       ];
 }

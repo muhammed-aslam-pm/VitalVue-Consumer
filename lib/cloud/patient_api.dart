@@ -32,6 +32,7 @@ class PatientApi {
     required String bloodGroup,
     required String deviceId,
     String? altPhone,
+    String? preCondition,
   }) async {
     final endpoint = '${_baseUrl}api/v1/patients/register';
     
@@ -45,6 +46,7 @@ class PatientApi {
       'blood_group': bloodGroup,
       'device_id': deviceId,
       if (altPhone != null && altPhone.isNotEmpty) 'alt_phone': altPhone,
+      if (preCondition != null && preCondition.isNotEmpty) 'pre_condition': preCondition,
     };
 
     try {

@@ -177,52 +177,54 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
 
-            const SizedBox(height: 16),
-            _buildSection(
-              title: 'Alert Settings',
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    activeColor: const Color(0xFF1A73E8),
-                    title: Text(
-                      'Voice Announcements',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 15, fontWeight: FontWeight.w500),
+            if (!profile.isPatient) ...[
+              const SizedBox(height: 16),
+              _buildSection(
+                title: 'Alert Settings',
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      activeThumbColor: const Color(0xFF1A73E8),
+                      title: Text(
+                        'Voice Announcements',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 15, fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: Text(
+                        'Verbal read-out of critical alerts',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
+                      ),
+                      value: _enableTts,
+                      onChanged: (val) async {
+                        setState(() => _enableTts = val);
+                        await BackgroundPreferences.setEnableTts(val);
+                      },
                     ),
-                    subtitle: Text(
-                      'Verbal read-out of critical alerts',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
-                    ),
-                    value: _enableTts,
-                    onChanged: (val) async {
-                      setState(() => _enableTts = val);
-                      await BackgroundPreferences.setEnableTts(val);
-                    },
                   ),
-                ),
-                Material(
-                  color: Colors.transparent,
-                  child: SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    activeColor: const Color(0xFF1A73E8),
-                    title: Text(
-                      'Push Notifications',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 15, fontWeight: FontWeight.w500),
+                  Material(
+                    color: Colors.transparent,
+                    child: SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      activeThumbColor: const Color(0xFF1A73E8),
+                      title: Text(
+                        'Push Notifications',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 15, fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: Text(
+                        'Heads-up banners for critical alerts',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
+                      ),
+                      value: _enablePush,
+                      onChanged: (val) async {
+                        setState(() => _enablePush = val);
+                        await BackgroundPreferences.setEnablePush(val);
+                      },
                     ),
-                    subtitle: Text(
-                      'Heads-up banners for critical alerts',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 13),
-                    ),
-                    value: _enablePush,
-                    onChanged: (val) async {
-                      setState(() => _enablePush = val);
-                      await BackgroundPreferences.setEnablePush(val);
-                    },
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
 
             const SizedBox(height: 48),
             SizedBox(

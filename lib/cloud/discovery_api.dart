@@ -99,4 +99,18 @@ class DiscoveryApi {
       return [];
     }
   }
+
+  Future<List<String>> getComorbidities() async {
+    final endpoint = '${_baseUrl}api/v1/discovery/comorbidities';
+    try {
+      final resp = await _dio.get(endpoint);
+      if (resp.data is List) {
+        return List<String>.from(resp.data);
+      }
+      return [];
+    } on DioException catch (e) {
+      print('[Discovery] getComorbidities failed: ${e.message}');
+      return [];
+    }
+  }
 }

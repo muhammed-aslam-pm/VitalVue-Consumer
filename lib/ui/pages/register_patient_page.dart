@@ -31,6 +31,7 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
   final _altPhoneCtrl = TextEditingController();
   String _gender = 'M';
   String _bloodGroup = 'O+';
+  String? _preCondition;
 
   @override
   void initState() {
@@ -39,6 +40,7 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
       discoveryApi: DiscoveryApi(baseUrl: _kApiBaseUrl),
       patientApi: PatientApi(baseUrl: _kApiBaseUrl),
     );
+    _registerBloc.add(RegisterInitialize());
     _registerBloc.add(const RegisterSearchOrganizations(
       country: 'India',
       state: 'Kerala',
@@ -68,6 +70,7 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
         gender: _gender,
         bloodGroup: _bloodGroup,
         deviceId: 'device_${DateTime.now().millisecondsSinceEpoch}',
+        preCondition: _preCondition,
       ));
     }
   }
@@ -152,6 +155,25 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                     _buildTextField(_phoneCtrl, 'Phone Number', required: true, keyboardType: TextInputType.phone),
                     _buildTextField(_altPhoneCtrl, 'Alt Phone Number', keyboardType: TextInputType.phone),
                     
+                    if (state.comorbidities.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _preCondition,
+                        decoration: InputDecoration(
+                          labelText: 'Pre Condition',
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        dropdownColor: Theme.of(context).colorScheme.surface,
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                        items: state.comorbidities
+                            .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                            .toList(),
+                        onChanged: (val) => setState(() => _preCondition = val),
+                      ),
+                    ],
+
                     const SizedBox(height: 32),
                     _buildSectionTitle('Hospital Details'),
                     

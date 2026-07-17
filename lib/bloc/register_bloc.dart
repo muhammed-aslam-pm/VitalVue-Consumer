@@ -20,6 +20,15 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
     on<RegisterWardSelected>(_onWardSelected);
     on<RegisterRoomSelected>(_onRoomSelected);
     on<RegisterSubmit>(_onSubmit);
+    on<RegisterInitialize>(_onInitialize);
+  }
+
+  Future<void> _onInitialize(
+      RegisterInitialize event, Emitter<RegisterState> emit) async {
+    try {
+      final comorbidities = await discoveryApi.getComorbidities();
+      emit(state.copyWith(comorbidities: comorbidities));
+    } catch (_) {}
   }
 
   Future<void> _onSearchOrganizations(
@@ -156,6 +165,7 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
         bloodGroup: event.bloodGroup,
         deviceId: event.deviceId,
         altPhone: event.altPhone,
+        preCondition: event.preCondition,
       );
 
       if (success) {

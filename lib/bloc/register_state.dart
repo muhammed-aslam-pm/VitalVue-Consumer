@@ -11,6 +11,7 @@ class RegisterState extends Equatable {
   final List<Map<String, dynamic>> stations;
   final List<Map<String, dynamic>> wards;
   final List<Map<String, dynamic>> rooms;
+  final List<String> comorbidities;
 
   final int? selectedOrgId;
   final int? selectedDeptId;
@@ -26,6 +27,7 @@ class RegisterState extends Equatable {
     this.stations = const [],
     this.wards = const [],
     this.rooms = const [],
+    this.comorbidities = const [],
     this.selectedOrgId,
     this.selectedDeptId,
     this.selectedStationId,
@@ -41,6 +43,7 @@ class RegisterState extends Equatable {
     List<Map<String, dynamic>>? stations,
     List<Map<String, dynamic>>? wards,
     List<Map<String, dynamic>>? rooms,
+    List<String>? comorbidities,
     int? selectedOrgId,
     int? selectedDeptId,
     int? selectedStationId,
@@ -60,6 +63,7 @@ class RegisterState extends Equatable {
       stations: stations ?? this.stations,
       wards: wards ?? this.wards,
       rooms: rooms ?? this.rooms,
+      comorbidities: comorbidities ?? this.comorbidities,
       selectedOrgId: clearOrg ? null : (selectedOrgId ?? this.selectedOrgId),
       selectedDeptId: clearDept ? null : (selectedDeptId ?? this.selectedDeptId),
       selectedStationId: clearStation ? null : (selectedStationId ?? this.selectedStationId),
@@ -77,6 +81,7 @@ class RegisterState extends Equatable {
         stations,
         wards,
         rooms,
+        comorbidities,
         selectedOrgId,
         selectedDeptId,
         selectedStationId,
