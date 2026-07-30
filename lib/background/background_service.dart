@@ -92,6 +92,36 @@ void onStart(ServiceInstance service) async {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
+  // ── Shared Alert pre-feedback: long vibration + warning beep ────────────────
+  // Plays vibration and the bundled warning beep concurrently, then holds
+  // 700 ms so users hear: [buzz + beep] → voice announcement.
+  Future<void> triggerAlertFeedback() async {
+    await Future.wait([
+      // 1. Long double-buzz: 700 ms on, 150 ms off, 700 ms on.
+      () async {
+        try {
+          final hasVibrator = await Vibration.hasVibrator();
+          if (hasVibrator == true) {
+            await Vibration.vibrate(pattern: [0, 700, 150, 700]);
+          }
+        } catch (_) {}
+      }(),
+      // 2. Play the bundled triple-beep warning tone (not phone ringtone).
+      () async {
+        try {
+          final player = AudioPlayer();
+          await player.setVolume(1.0);
+          await player.play(AssetSource('sounds/warning_beep.wav'));
+          // Wait for the beep to finish (~800 ms) then release.
+          await Future.delayed(const Duration(milliseconds: 900));
+          await player.dispose();
+        } catch (_) {}
+      }(),
+    ]);
+    // Brief pause so TTS voice doesn't overlap the beep tail.
+    await Future.delayed(const Duration(milliseconds: 700));
+  }
+
   // --- STAFF/DOCTOR SSE BACKGROUND LOGIC ---
   final profile = await BackgroundPreferences.getProfile();
   if (profile != null && !profile.isPatient) {
@@ -111,36 +141,6 @@ void onStart(ServiceInstance service) async {
     final flutterTts = FlutterTts();
     await flutterTts.setVolume(1.0);
     await flutterTts.setSpeechRate(0.5);
-
-    // ── Alert pre-feedback: long vibration + warning beep ────────────────
-    // Plays vibration and the bundled warning beep concurrently, then holds
-    // 700 ms so users hear: [buzz + beep] → voice announcement.
-    Future<void> triggerAlertFeedback() async {
-      await Future.wait([
-        // 1. Long double-buzz: 700 ms on, 150 ms off, 700 ms on.
-        () async {
-          try {
-            final hasVibrator = await Vibration.hasVibrator();
-            if (hasVibrator == true) {
-              await Vibration.vibrate(pattern: [0, 700, 150, 700]);
-            }
-          } catch (_) {}
-        }(),
-        // 2. Play the bundled triple-beep warning tone (not phone ringtone).
-        () async {
-          try {
-            final player = AudioPlayer();
-            await player.setVolume(1.0);
-            await player.play(AssetSource('sounds/warning_beep.wav'));
-            // Wait for the beep to finish (~800 ms) then release.
-            await Future.delayed(const Duration(milliseconds: 900));
-            await player.dispose();
-          } catch (_) {}
-        }(),
-      ]);
-      // Brief pause so TTS voice doesn't overlap the beep tail.
-      await Future.delayed(const Duration(milliseconds: 700));
-    }
 
     final sseSubscription = sseService.connect().listen((event) async {
       if (event is SseCriticalAlertEvent) {
@@ -208,15 +208,26 @@ void onStart(ServiceInstance service) async {
   }
   // --- END STAFF/DOCTOR LOGIC ---
 
+  // --- PATIENT BLE MONITORING LOGIC ---
   BandSessionService? session;
 
+  final patientTts = FlutterTts();
+  await patientTts.setVolume(1.0);
+  await patientTts.setSpeechRate(0.5);
+
+  bool wasConnected = false;
+  bool wasRemoved = false;
+  bool isManualDisconnect = false;
+
   service.on('stopService').listen((event) async {
+    isManualDisconnect = true;
     await session?.disconnect();
     service.stopSelf();
   });
 
   service.on('connectDevice').listen((event) async {
     if (event == null) return;
+    isManualDisconnect = false;
     final remoteIdStr = event['remote_id'] as String;
     final deviceId = event['device_id'] as String;
 
@@ -297,40 +308,11 @@ void onStart(ServiceInstance service) async {
           await db.markAsIngested(id);
         }
 
-        /*
-        final uningested = await db.getUningestedVitals();
-        for (var row in uningested) {
-          if (row['_id'] == id) continue;
-          
-          final syncSuccess = await api.ingest(
-            patientId: row['patient_id'],
-            deviceId: row['device_id'],
-            hr: row['hr'],
-            spo2: row['spo2'],
-            tempC: row['tempC'],
-            bpSys: row['bpSys'],
-            bpDia: row['bpDia'],
-            hrv: row['hrv'],
-            stress: row['stress'],
-            steps: row['steps'],
-            calories: row['calories'],
-            distanceKm: row['distanceKm'],
-            battery: row['battery'],
-            isRemoved: row['isRemoved'] == 1,
-          );
-          
-          if (syncSuccess) {
-            await db.markAsIngested(row['_id']);
-          } else {
-            break;
-          }
-        }
-        */
         await db.deleteOldVitals();
       },
     );
 
-    session!.stateStream.listen((state) {
+    session!.stateStream.listen((state) async {
       // Broadcast state back to UI
       service.invoke('vitals_update', {
         'status': state.connectionStatus.name,
@@ -348,8 +330,83 @@ void onStart(ServiceInstance service) async {
         'isRemoved': state.isRemoved,
       });
 
+      final isConnected = state.connectionStatus == BleConnectionStatus.connected;
+      final isDisconnected = state.connectionStatus == BleConnectionStatus.disconnected;
+
+      // ── Accidental Disconnect Detection ──
+      if (wasConnected && isDisconnected && !isManualDisconnect) {
+        wasConnected = false;
+        final enableTts = await BackgroundPreferences.getEnableTts();
+        final enablePush = await BackgroundPreferences.getEnablePush();
+
+        await triggerAlertFeedback();
+
+        if (enableTts) {
+          await patientTts.speak(
+              'Warning: Your band was disconnected accidentally. Attempting to reconnect.');
+        }
+
+        if (enablePush) {
+          flutterLocalNotificationsPlugin.show(
+            id: 991,
+            title: 'Band Disconnected',
+            body: 'Your band lost connection accidentally. Attempting to reconnect...',
+            notificationDetails: const NotificationDetails(
+              android: AndroidNotificationDetails(
+                'critical_alerts_channel',
+                'Critical Alerts',
+                icon: 'ic_bg_service_small',
+                importance: Importance.max,
+                priority: Priority.max,
+                enableVibration: false,
+                playSound: true,
+                sound: RawResourceAndroidNotificationSound('warning_beep'),
+              ),
+            ),
+          );
+        }
+      } else if (isConnected) {
+        wasConnected = true;
+      }
+
+      // ── Off-Wrist Detection ──
+      if (!wasRemoved && state.isRemoved) {
+        wasRemoved = true;
+        final enableTts = await BackgroundPreferences.getEnableTts();
+        final enablePush = await BackgroundPreferences.getEnablePush();
+
+        await triggerAlertFeedback();
+
+        if (enableTts) {
+          await patientTts.speak(
+              'Warning: Band off wrist detected. Please put your band back on.');
+        }
+
+        if (enablePush) {
+          flutterLocalNotificationsPlugin.show(
+            id: 992,
+            title: 'Band Off-Wrist Detected',
+            body: 'Please ensure your band is worn securely on your wrist.',
+            notificationDetails: const NotificationDetails(
+              android: AndroidNotificationDetails(
+                'critical_alerts_channel',
+                'Critical Alerts',
+                icon: 'ic_bg_service_small',
+                importance: Importance.max,
+                priority: Priority.max,
+                enableVibration: false,
+                playSound: true,
+                sound: RawResourceAndroidNotificationSound('warning_beep'),
+              ),
+            ),
+          );
+        }
+      } else if (wasRemoved && !state.isRemoved) {
+        wasRemoved = false;
+      }
+
       if (service is AndroidServiceInstance) {
-        if (state.connectionStatus == BleConnectionStatus.connected) {
+        if (isConnected) {
           flutterLocalNotificationsPlugin.show(
             id: 888,
             title: 'JBand Connected',
@@ -413,150 +470,6 @@ void onStart(ServiceInstance service) async {
       'remote_id': savedDevice['mac'],
       'device_id': savedDevice['id'],
     });
-    // simulate receiving it
-    final remoteIdStr = savedDevice['mac']!;
-    final deviceId = savedDevice['id']!;
-
-    final profile = await BackgroundPreferences.getProfile();
-    if (profile != null) {
-      final device = BluetoothDevice.fromId(remoteIdStr);
-      session = BandSessionService(
-        patientId: profile.id,
-        deviceId: deviceId,
-        personalInfo: PersonalInfo(
-          age: profile.age ?? 30,
-          sex: (profile.gender ?? 'Male') == 'Male' ? 1 : 0,
-          heightCm: profile.height ?? 170,
-          weightKg: profile.weight ?? 70,
-          stepLengthCm: ((profile.height ?? 170) * 0.415).toInt(),
-        ),
-        onIngest: (state) async {
-          final store = AuthTokenStore();
-          final repo = AuthRepository(
-              baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
-          final interceptor =
-              AuthInterceptor(store: store, repository: repo, onLogout: () {});
-          final api = BandVitalsApi(
-            baseUrl: 'https://vitalvue-api.genesysailabs.com',
-            authInterceptor: interceptor,
-          );
-          
-          final db = VitalsDatabase.instance;
-          
-          final vitalData = {
-            'timestamp': DateTime.now().millisecondsSinceEpoch,
-            'patient_id': profile.id,
-            'device_id': deviceId,
-            'hr': state.hr,
-            'spo2': state.spo2,
-            'tempC': state.tempC,
-            'bpSys': state.systolic ?? 0,
-            'bpDia': state.diastolic ?? 0,
-            'hrv': state.hrv ?? 0,
-            'stress': (state.stress ?? 0).toString(),
-            'steps': state.steps,
-            'calories': state.calories,
-            'distanceKm': state.distanceKm,
-            'battery': state.battery,
-            'isRemoved': state.isRemoved,
-            'isIngested': 0,
-          };
-
-          final id = await db.insertVital(vitalData);
-
-          final success = await api.ingest(
-            patientId: profile.id,
-            deviceId: deviceId,
-            hr: state.hr,
-            spo2: state.spo2,
-            tempC: state.tempC,
-            bpSys: state.systolic ?? 0,
-            bpDia: state.diastolic ?? 0,
-            hrv: state.hrv ?? 0,
-            stress: (state.stress ?? 0).toString(),
-            steps: state.steps,
-            calories: state.calories,
-            distanceKm: state.distanceKm,
-            battery: state.battery,
-            isRemoved: state.isRemoved,
-            isConnected: state.connectionStatus == BleConnectionStatus.connected,
-          );
-
-          if (success) {
-            await db.markAsIngested(id);
-          }
-
-          /*
-          final uningested = await db.getUningestedVitals();
-          for (var row in uningested) {
-            if (row['_id'] == id) continue;
-            
-            final syncSuccess = await api.ingest(
-              patientId: row['patient_id'],
-              deviceId: row['device_id'],
-              hr: row['hr'],
-              spo2: row['spo2'],
-              tempC: row['tempC'],
-              bpSys: row['bpSys'],
-              bpDia: row['bpDia'],
-              hrv: row['hrv'],
-              stress: row['stress'],
-              steps: row['steps'],
-              calories: row['calories'],
-              distanceKm: row['distanceKm'],
-              battery: row['battery'],
-              isRemoved: row['isRemoved'] == 1,
-            );
-            
-            if (syncSuccess) {
-              await db.markAsIngested(row['_id']);
-            } else {
-              break;
-            }
-          }
-          */
-          await db.deleteOldVitals();
-        },
-      );
-
-      session!.stateStream.listen((state) {
-        service.invoke('vitals_update', {
-          'status': state.connectionStatus.name,
-          'hr': state.hr,
-          'spo2': state.spo2,
-          'tempC': state.tempC,
-          'bpSys': state.systolic,
-          'bpDia': state.diastolic,
-          'hrv': state.hrv,
-          'stress': state.stress,
-          'steps': state.steps,
-          'calories': state.calories,
-          'distanceKm': state.distanceKm,
-          'battery': state.battery,
-          'isRemoved': state.isRemoved,
-        });
-
-        if (service is AndroidServiceInstance) {
-          flutterLocalNotificationsPlugin.show(
-            id: 888,
-            title: state.connectionStatus == BleConnectionStatus.connected
-                ? 'JBand Connected'
-                : 'JBand Monitoring',
-            body: state.connectionStatus == BleConnectionStatus.connected
-                ? 'HR: ${state.hr} bpm | Temp: ${state.tempC}°C'
-                : 'Connecting...',
-            notificationDetails: const NotificationDetails(
-              android: AndroidNotificationDetails(
-                'jband_monitor_service',
-                'JBand Monitoring Service',
-                icon: 'ic_bg_service_small',
-                ongoing: true,
-              ),
-            ),
-          );
-        }
-      });
-      await session!.connect(device);
-    }
   }
 }
+
