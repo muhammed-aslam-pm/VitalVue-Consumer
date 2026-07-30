@@ -106,7 +106,7 @@ class BandVitalsApi {
     // ignore: avoid_print
     print('[Cloud] Attempting to change device to: $newDeviceId');
     try {
-      final resp = await _dio.post(url, data: {
+      final resp = await _dio.put(url, data: {
         'new_device_id': newDeviceId,
       });
       return resp.statusCode != null && resp.statusCode! < 300;

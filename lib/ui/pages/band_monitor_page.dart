@@ -55,15 +55,42 @@ class _BandMonitorPageState extends State<BandMonitorPage>
       Permission.ignoreBatteryOptimizations,
     ].request();
 
-    final allGranted = statuses[Permission.bluetoothScan] == PermissionStatus.granted &&
-                       statuses[Permission.bluetoothConnect] == PermissionStatus.granted;
+    final locationGranted = await Permission.locationWhenInUse.isGranted ||
+        await Permission.location.isGranted ||
+        statuses[Permission.locationWhenInUse]?.isGranted == true;
 
-    if (!allGranted) {
+    final bleScanGranted = await Permission.bluetoothScan.isGranted ||
+        statuses[Permission.bluetoothScan]?.isGranted == true;
+    final bleConnectGranted = await Permission.bluetoothConnect.isGranted ||
+        statuses[Permission.bluetoothConnect]?.isGranted == true;
+
+    // On Android 12+, Bluetooth Scan and Connect are required.
+    // On Android <= 11, Location permission is required for BLE scanning.
+    final isPermissionsOk = (bleScanGranted && bleConnectGranted) || locationGranted;
+
+    if (!isPermissionsOk) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
                 'Bluetooth and Location permissions are required to scan for devices.'),
+            backgroundColor: Color(0xFFE53935),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    // Verify Location Services (GPS) is turned on (required for Android <= 11)
+    final isLocationServiceEnabled = await Permission.location.serviceStatus.isEnabled;
+    if (!isLocationServiceEnabled) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Please turn on Location Services (GPS) to discover nearby devices.'),
             backgroundColor: Color(0xFFE53935),
           ),
         );

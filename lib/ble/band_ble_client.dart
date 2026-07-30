@@ -34,9 +34,14 @@ class BandBleClient {
     return FlutterBluePlus.scanResults
         .expand((results) => results)
         .where((r) {
-          final name = (r.device.platformName).toLowerCase();
-          return name.contains('jcv5') ||
-              name.contains('jstyle') ||
+          final platformName = r.device.platformName.toLowerCase();
+          final advName = r.advertisementData.advName.toLowerCase();
+          return platformName.contains('jcv5') ||
+              platformName.contains('jstyle') ||
+              platformName.contains('v19') ||
+              advName.contains('jcv5') ||
+              advName.contains('jstyle') ||
+              advName.contains('v19') ||
               r.advertisementData.serviceUuids.any(
                   (u) => u.toString().toLowerCase().contains('fff0'));
         });
