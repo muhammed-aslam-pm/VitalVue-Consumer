@@ -225,9 +225,35 @@ void onStart(ServiceInstance service) async {
     service.stopSelf();
   });
 
+  // Disconnect BLE without stopping the service process.
+  // This keeps the isolate alive so connectDevice listeners remain registered,
+  // avoiding the double-click race on reconnect.
+  service.on('disconnectDevice').listen((event) async {
+    isManualDisconnect = true;
+    await session?.disconnect();
+    session = null;
+    wasConnected = false;
+    // Update notification to reflect disconnected state
+    flutterLocalNotificationsPlugin.show(
+      id: 888,
+      title: 'JBand Disconnected',
+      body: 'Tap to reconnect',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'jband_monitor_service',
+          'JBand Monitoring Service',
+          icon: 'ic_bg_service_small',
+          ongoing: true,
+        ),
+      ),
+    );
+  });
+
   service.on('connectDevice').listen((event) async {
     if (event == null) return;
     isManualDisconnect = false;
+    wasConnected = false;
+    wasRemoved = false;
     final remoteIdStr = event['remote_id'] as String;
     final deviceId = event['device_id'] as String;
 

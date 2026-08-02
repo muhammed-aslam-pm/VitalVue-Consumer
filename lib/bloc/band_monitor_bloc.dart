@@ -163,10 +163,13 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
     emit(BandConnectingState(event.device.platformName));
     
     final service = FlutterBackgroundService();
-    if (!await service.isRunning()) {
+    final wasRunning = await service.isRunning();
+    if (!wasRunning) {
       await service.startService();
       // Give the background isolate time to register event listeners.
-      await Future.delayed(const Duration(milliseconds: 800));
+      // Use a longer delay when cold-starting to avoid the race condition
+      // where connectDevice fires before onStart finishes registering handlers.
+      await Future.delayed(const Duration(milliseconds: 1500));
     }
     
     service.invoke('connectDevice', {
@@ -182,7 +185,15 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
     await _scanSub?.cancel();
     _scanSub = null;
     await BandBleClient.stopScan();
-    FlutterBackgroundService().invoke('stopService');
+    // Don't stop the background service — just tell it to disconnect BLE.
+    // Keeping the service alive means the connectDevice listener is already
+    // registered when the user reconnects, avoiding the double-click race.
+    final service = FlutterBackgroundService();
+    if (await service.isRunning()) {
+      service.invoke('disconnectDevice');
+    } else {
+      service.invoke('stopService');
+    }
     emit(const BandDisconnectedState());
   }
 
