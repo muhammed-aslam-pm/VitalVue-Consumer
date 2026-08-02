@@ -13,6 +13,8 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
     required this.discoveryApi,
     required this.patientApi,
   }) : super(const RegisterState()) {
+    on<RegisterFetchNearbyOrganizations>(_onFetchNearbyOrganizations);
+    on<RegisterToggleManualSelection>(_onToggleManualSelection);
     on<RegisterSearchOrganizations>(_onSearchOrganizations);
     on<RegisterOrganizationSelected>(_onOrganizationSelected);
     on<RegisterDepartmentSelected>(_onDepartmentSelected);
@@ -21,6 +23,59 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
     on<RegisterRoomSelected>(_onRoomSelected);
     on<RegisterSubmit>(_onSubmit);
     on<RegisterInitialize>(_onInitialize);
+  }
+
+  Future<void> _onFetchNearbyOrganizations(
+      RegisterFetchNearbyOrganizations event, Emitter<RegisterState> emit) async {
+    emit(state.copyWith(
+      isAutoDetecting: true,
+      clearLocationMessage: true,
+    ));
+
+    try {
+      final nearbyOrgs = await discoveryApi.getNearbyOrganizations(
+        lat: event.lat,
+        lon: event.lon,
+        radiusM: event.radiusM,
+      );
+
+      if (nearbyOrgs.isNotEmpty) {
+        final firstOrgId = nearbyOrgs.first['id'] as int?;
+        emit(state.copyWith(
+          isAutoDetecting: false,
+          isManualSelection: false,
+          nearbyOrganizations: nearbyOrgs,
+          organizations: nearbyOrgs,
+          selectedOrgId: firstOrgId,
+          locationMessage: 'Detected ${nearbyOrgs.length} nearby hospital(s).',
+        ));
+
+        if (firstOrgId != null) {
+          add(RegisterOrganizationSelected(firstOrgId));
+        }
+      } else {
+        emit(state.copyWith(
+          isAutoDetecting: false,
+          isManualSelection: true,
+          nearbyOrganizations: [],
+          locationMessage:
+              'No hospitals detected within ${event.radiusM}m radius. Switched to manual selection.',
+        ));
+      }
+    } catch (e) {
+      emit(state.copyWith(
+        isAutoDetecting: false,
+        isManualSelection: true,
+        nearbyOrganizations: [],
+        locationMessage:
+            'Unable to fetch nearby hospitals. Switched to manual selection.',
+      ));
+    }
+  }
+
+  void _onToggleManualSelection(
+      RegisterToggleManualSelection event, Emitter<RegisterState> emit) {
+    emit(state.copyWith(isManualSelection: event.isManual));
   }
 
   Future<void> _onInitialize(

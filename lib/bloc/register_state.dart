@@ -6,6 +6,11 @@ class RegisterState extends Equatable {
   final RegisterStatus status;
   final String? errorMessage;
 
+  final bool isAutoDetecting;
+  final bool isManualSelection;
+  final String? locationMessage;
+  final List<Map<String, dynamic>> nearbyOrganizations;
+
   final List<Map<String, dynamic>> organizations;
   final List<Map<String, dynamic>> departments;
   final List<Map<String, dynamic>> stations;
@@ -22,6 +27,10 @@ class RegisterState extends Equatable {
   const RegisterState({
     this.status = RegisterStatus.initial,
     this.errorMessage,
+    this.isAutoDetecting = false,
+    this.isManualSelection = false,
+    this.locationMessage,
+    this.nearbyOrganizations = const [],
     this.organizations = const [],
     this.departments = const [],
     this.stations = const [],
@@ -38,6 +47,11 @@ class RegisterState extends Equatable {
   RegisterState copyWith({
     RegisterStatus? status,
     String? errorMessage,
+    bool? isAutoDetecting,
+    bool? isManualSelection,
+    String? locationMessage,
+    bool clearLocationMessage = false,
+    List<Map<String, dynamic>>? nearbyOrganizations,
     List<Map<String, dynamic>>? organizations,
     List<Map<String, dynamic>>? departments,
     List<Map<String, dynamic>>? stations,
@@ -58,6 +72,10 @@ class RegisterState extends Equatable {
     return RegisterState(
       status: status ?? this.status,
       errorMessage: errorMessage,
+      isAutoDetecting: isAutoDetecting ?? this.isAutoDetecting,
+      isManualSelection: isManualSelection ?? this.isManualSelection,
+      locationMessage: clearLocationMessage ? null : (locationMessage ?? this.locationMessage),
+      nearbyOrganizations: nearbyOrganizations ?? this.nearbyOrganizations,
       organizations: organizations ?? this.organizations,
       departments: departments ?? this.departments,
       stations: stations ?? this.stations,
@@ -76,6 +94,10 @@ class RegisterState extends Equatable {
   List<Object?> get props => [
         status,
         errorMessage,
+        isAutoDetecting,
+        isManualSelection,
+        locationMessage,
+        nearbyOrganizations,
         organizations,
         departments,
         stations,

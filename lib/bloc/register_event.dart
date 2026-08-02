@@ -9,6 +9,28 @@ abstract class RegisterEvent extends Equatable {
 
 class RegisterInitialize extends RegisterEvent {}
 
+class RegisterFetchNearbyOrganizations extends RegisterEvent {
+  final double lat;
+  final double lon;
+  final int radiusM;
+
+  const RegisterFetchNearbyOrganizations({
+    required this.lat,
+    required this.lon,
+    this.radiusM = 200,
+  });
+
+  @override
+  List<Object?> get props => [lat, lon, radiusM];
+}
+
+class RegisterToggleManualSelection extends RegisterEvent {
+  final bool isManual;
+  const RegisterToggleManualSelection(this.isManual);
+  @override
+  List<Object?> get props => [isManual];
+}
+
 class RegisterSearchOrganizations extends RegisterEvent {
   final String country;
   final String state;

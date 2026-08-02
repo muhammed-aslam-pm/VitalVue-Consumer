@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../bloc/register_bloc.dart';
 import '../../bloc/register_event.dart';
@@ -30,7 +32,7 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
   final _phoneCtrl = TextEditingController();
   final _altPhoneCtrl = TextEditingController();
   String _gender = 'M';
-  String _bloodGroup = 'O+';
+  final String _bloodGroup = 'O+';
   String? _preCondition;
 
   @override
@@ -46,6 +48,7 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
       state: 'Kerala',
       city: 'Cochin',
     ));
+    _detectLocationAndFetchHospitals();
   }
 
   @override
@@ -57,6 +60,65 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
     _phoneCtrl.dispose();
     _altPhoneCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _detectLocationAndFetchHospitals() async {
+    var permission = await Permission.locationWhenInUse.status;
+    if (permission.isDenied) {
+      permission = await Permission.locationWhenInUse.request();
+    }
+
+    if (!permission.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permission required for auto-detect. Switched to manual selection.'),
+            backgroundColor: Color(0xFFE53935),
+          ),
+        );
+      }
+      _registerBloc.add(const RegisterToggleManualSelection(true));
+      return;
+    }
+
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enable Location Services (GPS) to auto-detect nearby hospitals.'),
+            backgroundColor: Color(0xFFE53935),
+          ),
+        );
+      }
+      _registerBloc.add(const RegisterToggleManualSelection(true));
+      return;
+    }
+
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      _registerBloc.add(RegisterFetchNearbyOrganizations(
+        lat: position.latitude,
+        lon: position.longitude,
+        radiusM: 200,
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not get GPS location: $e. Switched to manual selection.'),
+            backgroundColor: const Color(0xFFE53935),
+          ),
+        );
+      }
+      _registerBloc.add(const RegisterToggleManualSelection(true));
+    }
   }
 
   void _onSubmit() {
@@ -137,49 +199,119 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: _bloodGroup,
-                      decoration: InputDecoration(
-                        labelText: 'Blood Group',
-                        filled: true,
-                        fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      ),
-                      dropdownColor: Theme.of(context).colorScheme.surface,
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                      items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-                          .map((bg) => DropdownMenuItem(value: bg, child: Text(bg)))
-                          .toList(),
-                      onChanged: (val) => setState(() => _bloodGroup = val!),
-                    ),
-                    const SizedBox(height: 16),
                     _buildTextField(_phoneCtrl, 'Phone Number', required: true, keyboardType: TextInputType.phone),
                     _buildTextField(_altPhoneCtrl, 'Alt Phone Number', keyboardType: TextInputType.phone),
-                    
-                    if (state.comorbidities.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: _preCondition,
-                        decoration: InputDecoration(
-                          labelText: 'Pre Condition',
-                          filled: true,
-                          fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+
+                    const SizedBox(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildSectionTitle('Hospital Details'),
+                        TextButton.icon(
+                          onPressed: () {
+                            if (state.isManualSelection) {
+                              _detectLocationAndFetchHospitals();
+                            } else {
+                              _registerBloc.add(const RegisterToggleManualSelection(true));
+                            }
+                          },
+                          icon: Icon(
+                            state.isManualSelection
+                                ? Icons.my_location_rounded
+                                : Icons.edit_location_alt_rounded,
+                            size: 18,
+                            color: const Color(0xFF1A73E8),
+                          ),
+                          label: Text(
+                            state.isManualSelection
+                                ? 'Auto-Detect (GPS)'
+                                : 'Manual Selection',
+                            style: const TextStyle(
+                              color: Color(0xFF1A73E8),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
-                        dropdownColor: Theme.of(context).colorScheme.surface,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                        items: state.comorbidities
-                            .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                            .toList(),
-                        onChanged: (val) => setState(() => _preCondition = val),
+                      ],
+                    ),
+
+                    if (state.isAutoDetecting) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A73E8).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF1A73E8).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Detecting nearby hospital using device GPS...',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF1A73E8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (state.locationMessage != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: state.isManualSelection
+                              ? const Color(0xFFFFF3E0)
+                              : const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: state.isManualSelection
+                                ? const Color(0xFFFFB74D)
+                                : const Color(0xFF81C784),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              state.isManualSelection
+                                  ? Icons.info_outline_rounded
+                                  : Icons.check_circle_outline_rounded,
+                              size: 20,
+                              color: state.isManualSelection
+                                  ? const Color(0xFFE65100)
+                                  : const Color(0xFF2E7D32),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                state.locationMessage!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: state.isManualSelection
+                                      ? const Color(0xFFE65100)
+                                      : const Color(0xFF2E7D32),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
 
-                    const SizedBox(height: 32),
-                    _buildSectionTitle('Hospital Details'),
-                    
                     _buildDropdown('Hospital', state.organizations, state.selectedOrgId, (id) {
                       _registerBloc.add(RegisterOrganizationSelected(id));
                     }),

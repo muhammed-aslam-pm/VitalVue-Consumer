@@ -22,6 +22,33 @@ class DiscoveryApi {
   final String _baseUrl;
   late final Dio _dio;
 
+  Future<List<Map<String, dynamic>>> getNearbyOrganizations({
+    required double lat,
+    required double lon,
+    int radiusM = 200,
+  }) async {
+    final endpoint = '${_baseUrl}api/v1/discovery/organizations/nearby';
+    try {
+      final resp = await _dio.get(endpoint, queryParameters: {
+        'lat': lat,
+        'lon': lon,
+        'radius_m': radiusM,
+      });
+      if (resp.data is List) {
+        return List<Map<String, dynamic>>.from(resp.data);
+      } else if (resp.data is Map) {
+        return [Map<String, dynamic>.from(resp.data)];
+      }
+      return [];
+    } on DioException catch (e) {
+      print('[Discovery] getNearbyOrganizations failed: ${e.message}');
+      return [];
+    } catch (e) {
+      print('[Discovery] getNearbyOrganizations error: $e');
+      return [];
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getOrganizations({
     required String country,
     required String state,
