@@ -19,8 +19,10 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
     on<RegisterOrganizationSelected>(_onOrganizationSelected);
     on<RegisterDepartmentSelected>(_onDepartmentSelected);
     on<RegisterStationSelected>(_onStationSelected);
+    on<RegisterLocationTypeSelected>(_onLocationTypeSelected);
     on<RegisterWardSelected>(_onWardSelected);
     on<RegisterRoomSelected>(_onRoomSelected);
+    on<RegisterBedSelected>(_onBedSelected);
     on<RegisterSubmit>(_onSubmit);
     on<RegisterInitialize>(_onInitialize);
   }
@@ -160,17 +162,57 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
 
   Future<void> _onStationSelected(
       RegisterStationSelected event, Emitter<RegisterState> emit) async {
+    // Selecting a station resets everything downstream so the user
+    // must re-choose the location type (Room vs Ward).
     emit(state.copyWith(
-      status: RegisterStatus.loading,
+      status: RegisterStatus.initial,
       selectedStationId: event.stationId,
       wards: [],
       rooms: [],
+      beds: [],
+      clearLocationType: true,
       clearWard: true,
       clearRoom: true,
+      clearBed: true,
     ));
+  }
+
+  Future<void> _onLocationTypeSelected(
+      RegisterLocationTypeSelected event, Emitter<RegisterState> emit) async {
+    final isWard = event.locationType == 'ward';
+    final newType = isWard ? StationLocationType.ward : StationLocationType.room;
+
+    emit(state.copyWith(
+      status: RegisterStatus.loading,
+      locationType: newType,
+      wards: [],
+      rooms: [],
+      beds: [],
+      clearWard: true,
+      clearRoom: true,
+      clearBed: true,
+    ));
+
     try {
-      final wards = await discoveryApi.getWards(event.stationId);
-      emit(state.copyWith(status: RegisterStatus.initial, wards: wards));
+      if (isWard) {
+        // Ward path: fetch wards under the current station
+        final wards = await discoveryApi.getWards(state.selectedStationId!);
+        emit(state.copyWith(
+          status: RegisterStatus.initial,
+          locationType: newType,
+          wards: wards,
+        ));
+      } else {
+        // Room path: fetch rooms under the current station's first ward,
+        // or — if the API exposes rooms directly from the station — use that.
+        // Here we fetch from the station itself treated as a wardId context.
+        final rooms = await discoveryApi.getRooms(state.selectedStationId!);
+        emit(state.copyWith(
+          status: RegisterStatus.initial,
+          locationType: newType,
+          rooms: rooms,
+        ));
+      }
     } catch (e) {
       emit(state.copyWith(
           status: RegisterStatus.failure, errorMessage: e.toString()));
@@ -182,12 +224,15 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
     emit(state.copyWith(
       status: RegisterStatus.loading,
       selectedWardId: event.wardId,
+      beds: [],
       rooms: [],
       clearRoom: true,
+      clearBed: true,
     ));
     try {
-      final rooms = await discoveryApi.getRooms(event.wardId);
-      emit(state.copyWith(status: RegisterStatus.initial, rooms: rooms));
+      // Ward path: fetch available beds for the selected ward
+      final beds = await discoveryApi.getBedsForWard(event.wardId);
+      emit(state.copyWith(status: RegisterStatus.initial, beds: beds));
     } catch (e) {
       emit(state.copyWith(
           status: RegisterStatus.failure, errorMessage: e.toString()));
@@ -199,9 +244,23 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
     emit(state.copyWith(selectedRoomId: event.roomId));
   }
 
+  void _onBedSelected(
+      RegisterBedSelected event, Emitter<RegisterState> emit) {
+    emit(state.copyWith(selectedBedId: event.bedId));
+  }
+
   Future<void> _onSubmit(
       RegisterSubmit event, Emitter<RegisterState> emit) async {
-    if (state.selectedRoomId == null) {
+    final isWardPath = state.locationType == StationLocationType.ward;
+
+    // Validate: if ward path, bed must be selected; if room path, room must be selected.
+    if (isWardPath && state.selectedBedId == null) {
+      emit(state.copyWith(
+          status: RegisterStatus.failure,
+          errorMessage: 'Please select a bed.'));
+      return;
+    }
+    if (!isWardPath && state.selectedRoomId == null) {
       emit(state.copyWith(
           status: RegisterStatus.failure,
           errorMessage: 'Please select a room.'));
@@ -214,7 +273,8 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
         userId: event.userId,
         phoneNumber: event.phone,
         fullName: event.fullName,
-        roomId: state.selectedRoomId!,
+        roomId: isWardPath ? null : state.selectedRoomId,
+        bedId: isWardPath ? state.selectedBedId : null,
         age: event.age,
         gender: event.gender,
         bloodGroup: event.bloodGroup,

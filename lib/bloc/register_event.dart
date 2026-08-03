@@ -17,7 +17,7 @@ class RegisterFetchNearbyOrganizations extends RegisterEvent {
   const RegisterFetchNearbyOrganizations({
     required this.lat,
     required this.lon,
-    this.radiusM = 200,
+    this.radiusM = 500,
   });
 
   @override
@@ -79,6 +79,21 @@ class RegisterRoomSelected extends RegisterEvent {
   const RegisterRoomSelected(this.roomId);
   @override
   List<Object?> get props => [roomId];
+}
+
+class RegisterLocationTypeSelected extends RegisterEvent {
+  /// 'room' or 'ward'
+  final String locationType;
+  const RegisterLocationTypeSelected(this.locationType);
+  @override
+  List<Object?> get props => [locationType];
+}
+
+class RegisterBedSelected extends RegisterEvent {
+  final int bedId;
+  const RegisterBedSelected(this.bedId);
+  @override
+  List<Object?> get props => [bedId];
 }
 
 class RegisterSubmit extends RegisterEvent {

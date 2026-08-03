@@ -72,7 +72,8 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Location permission required for auto-detect. Switched to manual selection.'),
+            content: Text(
+                'Location permission required for auto-detect. Switched to manual selection.'),
             backgroundColor: Color(0xFFE53935),
           ),
         );
@@ -86,7 +87,8 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Please enable Location Services (GPS) to auto-detect nearby hospitals.'),
+            content: Text(
+                'Please enable Location Services (GPS) to auto-detect nearby hospitals.'),
             backgroundColor: Color(0xFFE53935),
           ),
         );
@@ -112,7 +114,8 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not get GPS location: $e. Switched to manual selection.'),
+            content: Text(
+                'Could not get GPS location: $e. Switched to manual selection.'),
             backgroundColor: const Color(0xFFE53935),
           ),
         );
@@ -152,12 +155,14 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
           listener: (context, state) {
             if (state.status == RegisterStatus.success) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Patient registered successfully!')),
+                const SnackBar(
+                    content: Text('Patient registered successfully!')),
               );
               Navigator.of(context).pop();
             } else if (state.status == RegisterStatus.failure) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.errorMessage ?? 'Registration failed')),
+                SnackBar(
+                    content: Text(state.errorMessage ?? 'Registration failed')),
               );
             }
           },
@@ -170,11 +175,17 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildSectionTitle('Personal Details'),
-                    _buildTextField(_userIdCtrl, 'Patient ID (User ID)', required: true),
-                    _buildTextField(_fullNameCtrl, 'Full Name', required: true, textCapitalization: TextCapitalization.words),
+                    _buildTextField(_userIdCtrl, 'Patient ID (User ID)',
+                        required: true),
+                    _buildTextField(_fullNameCtrl, 'Full Name',
+                        required: true,
+                        textCapitalization: TextCapitalization.words),
                     Row(
                       children: [
-                        Expanded(child: _buildTextField(_ageCtrl, 'Age', required: true, keyboardType: TextInputType.number)),
+                        Expanded(
+                            child: _buildTextField(_ageCtrl, 'Age',
+                                required: true,
+                                keyboardType: TextInputType.number)),
                         const SizedBox(width: 16),
                         Expanded(
                           child: DropdownButtonFormField<String>(
@@ -182,16 +193,25 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                             decoration: InputDecoration(
                               labelText: 'Gender',
                               filled: true,
-                              fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              fillColor: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.05),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 16),
                             ),
-                            dropdownColor: Theme.of(context).colorScheme.surface,
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                            dropdownColor:
+                                Theme.of(context).colorScheme.surface,
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface),
                             items: const [
                               DropdownMenuItem(value: 'M', child: Text('Male')),
-                              DropdownMenuItem(value: 'F', child: Text('Female')),
-                              DropdownMenuItem(value: 'O', child: Text('Other')),
+                              DropdownMenuItem(
+                                  value: 'F', child: Text('Female')),
+                              DropdownMenuItem(
+                                  value: 'O', child: Text('Other')),
                             ],
                             onChanged: (val) => setState(() => _gender = val!),
                           ),
@@ -199,9 +219,10 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(_phoneCtrl, 'Phone Number', required: true, keyboardType: TextInputType.phone),
-                    _buildTextField(_altPhoneCtrl, 'Alt Phone Number', keyboardType: TextInputType.phone),
-
+                    _buildTextField(_phoneCtrl, 'Phone Number',
+                        required: true, keyboardType: TextInputType.phone),
+                    _buildTextField(_altPhoneCtrl, 'Alt Phone Number',
+                        keyboardType: TextInputType.phone),
                     const SizedBox(height: 32),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -212,7 +233,8 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                             if (state.isManualSelection) {
                               _detectLocationAndFetchHospitals();
                             } else {
-                              _registerBloc.add(const RegisterToggleManualSelection(true));
+                              _registerBloc.add(
+                                  const RegisterToggleManualSelection(true));
                             }
                           },
                           icon: Icon(
@@ -235,16 +257,17 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                         ),
                       ],
                     ),
-
                     if (state.isAutoDetecting) ...[
                       Container(
                         padding: const EdgeInsets.all(16),
                         margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1A73E8).withValues(alpha: 0.08),
+                          color:
+                              const Color(0xFF1A73E8).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: const Color(0xFF1A73E8).withValues(alpha: 0.3),
+                            color:
+                                const Color(0xFF1A73E8).withValues(alpha: 0.3),
                           ),
                         ),
                         child: const Row(
@@ -252,7 +275,8 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                             SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2.5),
                             ),
                             SizedBox(width: 12),
                             Expanded(
@@ -311,26 +335,104 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                         ),
                       ),
                     ],
-
-                    _buildDropdown('Hospital', state.organizations, state.selectedOrgId, (id) {
+                    _buildDropdown(
+                        'Hospital', state.organizations, state.selectedOrgId,
+                        (id) {
                       _registerBloc.add(RegisterOrganizationSelected(id));
                     }),
-                    
-                    _buildDropdown('Department', state.departments, state.selectedDeptId, (id) {
+                    _buildDropdown(
+                        'Department', state.departments, state.selectedDeptId,
+                        (id) {
                       _registerBloc.add(RegisterDepartmentSelected(id));
                     }),
-                    
-                    _buildDropdown('Nursing Station', state.stations, state.selectedStationId, (id) {
+                    _buildDropdown('Nursing Station', state.stations,
+                        state.selectedStationId, (id) {
                       _registerBloc.add(RegisterStationSelected(id));
                     }),
-                    
-                    _buildDropdown('Ward', state.wards, state.selectedWardId, (id) {
-                      _registerBloc.add(RegisterWardSelected(id));
-                    }),
-                    
-                    _buildDropdown('Room', state.rooms, state.selectedRoomId, (id) {
-                      _registerBloc.add(RegisterRoomSelected(id));
-                    }),
+
+                    // ── Location type choice ────────────────────────────────
+                    if (state.selectedStationId != null) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A73E8).withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: const Color(0xFF1A73E8)
+                                  .withValues(alpha: 0.25)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Select location type',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1A73E8)),
+                            ),
+                            const SizedBox(height: 10),
+                            SegmentedButton<String>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: 'room',
+                                  label: Text('Room'),
+                                  icon: Icon(Icons.meeting_room_rounded),
+                                ),
+                                ButtonSegment(
+                                  value: 'ward',
+                                  label: Text('Ward'),
+                                  icon: Icon(Icons.local_hospital_rounded),
+                                ),
+                              ],
+                              selected: {
+                                if (state.locationType ==
+                                    StationLocationType.room)
+                                  'room'
+                                else if (state.locationType ==
+                                    StationLocationType.ward)
+                                  'ward'
+                                else
+                                  ''
+                              },
+                              emptySelectionAllowed: true,
+                              onSelectionChanged: (val) {
+                                if (val.isEmpty) return;
+                                _registerBloc.add(
+                                    RegisterLocationTypeSelected(val.first));
+                              },
+                              style: SegmentedButton.styleFrom(
+                                selectedBackgroundColor:
+                                    const Color(0xFF1A73E8),
+                                selectedForegroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // ── Room path ───────────────────────────────────────────
+                    if (state.locationType == StationLocationType.room) ...[
+                      _buildDropdown('Room', state.rooms, state.selectedRoomId,
+                          (id) {
+                        _registerBloc.add(RegisterRoomSelected(id));
+                      }),
+                    ],
+
+                    // ── Ward path ───────────────────────────────────────────
+                    if (state.locationType == StationLocationType.ward) ...[
+                      _buildDropdown('Ward', state.wards, state.selectedWardId,
+                          (id) {
+                        _registerBloc.add(RegisterWardSelected(id));
+                      }),
+                      _buildDropdown('Bed', state.beds, state.selectedBedId,
+                          (id) {
+                        _registerBloc.add(RegisterBedSelected(id));
+                      }),
+                    ],
 
                     const SizedBox(height: 48),
                     ElevatedButton(
@@ -338,10 +440,14 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: const Color(0xFF1A73E8),
                       ),
-                      onPressed: state.status == RegisterStatus.loading ? null : _onSubmit,
+                      onPressed: state.status == RegisterStatus.loading
+                          ? null
+                          : _onSubmit,
                       child: state.status == RegisterStatus.loading
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Register Patient', style: TextStyle(fontSize: 16, color: Colors.white)),
+                          : const Text('Register Patient',
+                              style:
+                                  TextStyle(fontSize: 16, color: Colors.white)),
                     ),
                   ],
                 ),
@@ -358,16 +464,18 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         title,
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
+        style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSurface),
       ),
     );
   }
 
-  Widget _buildTextField(
-    TextEditingController ctrl, 
-    String label, 
-    {bool required = false, TextInputType keyboardType = TextInputType.text, TextCapitalization textCapitalization = TextCapitalization.none}
-  ) {
+  Widget _buildTextField(TextEditingController ctrl, String label,
+      {bool required = false,
+      TextInputType keyboardType = TextInputType.text,
+      TextCapitalization textCapitalization = TextCapitalization.none}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
@@ -376,9 +484,11 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
         decoration: InputDecoration(
           labelText: label,
           filled: true,
-          fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
+          fillColor:
+              Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
         keyboardType: keyboardType,
         style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
@@ -389,35 +499,39 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
     );
   }
 
-  Widget _buildDropdown(
-    String label, 
-    List<Map<String, dynamic>> items, 
-    int? selectedValue, 
-    Function(int)? onChanged
-  ) {
+  Widget _buildDropdown(String label, List<Map<String, dynamic>> items,
+      int? selectedValue, Function(int)? onChanged) {
     final bool isEmpty = items.isEmpty;
     final dropdown = DropdownButtonFormField<int>(
       value: selectedValue,
       decoration: InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
+        fillColor:
+            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
       dropdownColor: Theme.of(context).colorScheme.surface,
       style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-      items: isEmpty ? null : items.map((item) {
-        final displayName = item['name'] ?? item['room_number'] ?? 'Unknown';
-        return DropdownMenuItem<int>(
-          value: item['id'] as int,
-          child: Text(displayName.toString()),
-        );
-      }).toList(),
-      onChanged: isEmpty ? null : (val) {
-        if (val != null && onChanged != null) onChanged(val);
-      },
-      validator: (value) => value == null && !isEmpty ? 'Please select $label' : null,
+      items: isEmpty
+          ? null
+          : items.map((item) {
+              final displayName =
+                  item['name'] ?? item['bed_no'] ?? item['room_number'] ?? 'Unknown';
+              return DropdownMenuItem<int>(
+                value: item['id'] as int,
+                child: Text(displayName.toString()),
+              );
+            }).toList(),
+      onChanged: isEmpty
+          ? null
+          : (val) {
+              if (val != null && onChanged != null) onChanged(val);
+            },
+      validator: (value) =>
+          value == null && !isEmpty ? 'Please select $label' : null,
     );
 
     return Padding(
@@ -426,7 +540,9 @@ class _RegisterPatientPageState extends State<RegisterPatientPage> {
           ? GestureDetector(
               onTap: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('No $label found for the selected location.')),
+                  SnackBar(
+                      content:
+                          Text('No $label found for the selected location.')),
                 );
               },
               child: AbsorbPointer(child: dropdown),

@@ -26,7 +26,8 @@ class PatientApi {
     required String userId,
     required String phoneNumber,
     required String fullName,
-    required int roomId,
+    int? roomId,
+    int? bedId,
     required int age,
     required String gender,
     required String bloodGroup,
@@ -40,7 +41,8 @@ class PatientApi {
       'user_id': userId,
       'phone_number': phoneNumber,
       'full_name': fullName,
-      'room_id': roomId,
+      if (roomId != null) 'room_id': roomId,
+      if (bedId != null) 'bed_id': bedId,
       'age': age,
       'gender': gender,
       'blood_group': bloodGroup,
@@ -56,7 +58,6 @@ class PatientApi {
       print('[PatientApi] registerPatient failed: ${e.message}');
       if (e.response != null) {
         print('[PatientApi] registerPatient error data: ${e.response?.data}');
-        // You could throw a custom exception here with e.response?.data message
         throw Exception(e.response?.data['detail'] ?? 'Registration failed');
       }
       throw Exception('Network error during registration');

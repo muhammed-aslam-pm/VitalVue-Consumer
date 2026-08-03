@@ -2,6 +2,9 @@ import 'package:equatable/equatable.dart';
 
 enum RegisterStatus { initial, loading, success, failure }
 
+/// Which sub-path was chosen after the nursing station selection.
+enum StationLocationType { none, room, ward }
+
 class RegisterState extends Equatable {
   final RegisterStatus status;
   final String? errorMessage;
@@ -16,13 +19,18 @@ class RegisterState extends Equatable {
   final List<Map<String, dynamic>> stations;
   final List<Map<String, dynamic>> wards;
   final List<Map<String, dynamic>> rooms;
+  final List<Map<String, dynamic>> beds;
   final List<String> comorbidities;
+
+  /// Whether the user chose "Room" or "Ward" after station selection.
+  final StationLocationType locationType;
 
   final int? selectedOrgId;
   final int? selectedDeptId;
   final int? selectedStationId;
   final int? selectedWardId;
   final int? selectedRoomId;
+  final int? selectedBedId;
 
   const RegisterState({
     this.status = RegisterStatus.initial,
@@ -36,12 +44,15 @@ class RegisterState extends Equatable {
     this.stations = const [],
     this.wards = const [],
     this.rooms = const [],
+    this.beds = const [],
     this.comorbidities = const [],
+    this.locationType = StationLocationType.none,
     this.selectedOrgId,
     this.selectedDeptId,
     this.selectedStationId,
     this.selectedWardId,
     this.selectedRoomId,
+    this.selectedBedId,
   });
 
   RegisterState copyWith({
@@ -57,17 +68,22 @@ class RegisterState extends Equatable {
     List<Map<String, dynamic>>? stations,
     List<Map<String, dynamic>>? wards,
     List<Map<String, dynamic>>? rooms,
+    List<Map<String, dynamic>>? beds,
     List<String>? comorbidities,
+    StationLocationType? locationType,
     int? selectedOrgId,
     int? selectedDeptId,
     int? selectedStationId,
     int? selectedWardId,
     int? selectedRoomId,
+    int? selectedBedId,
     bool clearOrg = false,
     bool clearDept = false,
     bool clearStation = false,
+    bool clearLocationType = false,
     bool clearWard = false,
     bool clearRoom = false,
+    bool clearBed = false,
   }) {
     return RegisterState(
       status: status ?? this.status,
@@ -81,12 +97,15 @@ class RegisterState extends Equatable {
       stations: stations ?? this.stations,
       wards: wards ?? this.wards,
       rooms: rooms ?? this.rooms,
+      beds: beds ?? this.beds,
       comorbidities: comorbidities ?? this.comorbidities,
+      locationType: clearLocationType ? StationLocationType.none : (locationType ?? this.locationType),
       selectedOrgId: clearOrg ? null : (selectedOrgId ?? this.selectedOrgId),
       selectedDeptId: clearDept ? null : (selectedDeptId ?? this.selectedDeptId),
       selectedStationId: clearStation ? null : (selectedStationId ?? this.selectedStationId),
       selectedWardId: clearWard ? null : (selectedWardId ?? this.selectedWardId),
       selectedRoomId: clearRoom ? null : (selectedRoomId ?? this.selectedRoomId),
+      selectedBedId: clearBed ? null : (selectedBedId ?? this.selectedBedId),
     );
   }
 
@@ -103,11 +122,14 @@ class RegisterState extends Equatable {
         stations,
         wards,
         rooms,
+        beds,
         comorbidities,
+        locationType,
         selectedOrgId,
         selectedDeptId,
         selectedStationId,
         selectedWardId,
         selectedRoomId,
+        selectedBedId,
       ];
 }

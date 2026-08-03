@@ -25,7 +25,7 @@ class DiscoveryApi {
   Future<List<Map<String, dynamic>>> getNearbyOrganizations({
     required double lat,
     required double lon,
-    int radiusM = 200,
+    int radiusM = 500,
   }) async {
     final endpoint = '${_baseUrl}api/v1/discovery/organizations/nearby';
     try {
@@ -57,9 +57,9 @@ class DiscoveryApi {
     final endpoint = '${_baseUrl}api/v1/discovery/organizations';
     try {
       final resp = await _dio.get(endpoint, queryParameters: {
-        'country': country,
-        'state': state,
-        'city': city,
+        // 'country': country,
+        // 'state': state,
+        // 'city': city,
       });
       if (resp.data is List) {
         return List<Map<String, dynamic>>.from(resp.data);
@@ -72,7 +72,8 @@ class DiscoveryApi {
   }
 
   Future<List<Map<String, dynamic>>> getDepartments(int orgId) async {
-    final endpoint = '${_baseUrl}api/v1/discovery/organizations/$orgId/departments';
+    final endpoint =
+        '${_baseUrl}api/v1/discovery/organizations/$orgId/departments';
     try {
       final resp = await _dio.get(endpoint);
       if (resp.data is List) {
@@ -123,6 +124,23 @@ class DiscoveryApi {
       return [];
     } on DioException catch (e) {
       print('[Discovery] getRooms failed: ${e.message}');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getBedsForWard(int wardId) async {
+    final endpoint = '${_baseUrl}api/v1/discovery/wards/$wardId/beds';
+    try {
+      final resp = await _dio.get(endpoint, queryParameters: {
+        'include_occupied': false,
+        'include_inactive': false,
+      });
+      if (resp.data is List) {
+        return List<Map<String, dynamic>>.from(resp.data);
+      }
+      return [];
+    } on DioException catch (e) {
+      print('[Discovery] getBedsForWard failed: ${e.message}');
       return [];
     }
   }
