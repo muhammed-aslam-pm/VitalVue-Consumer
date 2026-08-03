@@ -122,17 +122,27 @@ void onStart(ServiceInstance service) async {
     await Future.delayed(const Duration(milliseconds: 700));
   }
 
+  // Track currently active alert IDs that are being announced.
+  final Set<int> activeAlertIds = {};
+
   // ── Staff alert: Beep Beep + speech × 3, then a final Beep Beep ─────────────
   // Pattern per client spec:
   //   [Beep Beep] "<message>" [Beep Beep] "<message>" [Beep Beep] "<message>" [Beep Beep]
   Future<void> announceRepeat(
     FlutterTts tts,
     String message, {
+    int? alertId,
     int times = 3,
   }) async {
     for (int i = 0; i < times; i++) {
+      if (alertId != null && !activeAlertIds.contains(alertId)) {
+        break;
+      }
       // Play beep + vibration.
       await triggerAlertFeedback();
+      if (alertId != null && !activeAlertIds.contains(alertId)) {
+        break;
+      }
       // Speak the message and wait until it finishes.
       final completer = Completer<void>();
       tts.setCompletionHandler(() {
@@ -144,11 +154,19 @@ void onStart(ServiceInstance service) async {
         const Duration(seconds: 10),
         onTimeout: () {},
       );
+      if (alertId != null && !activeAlertIds.contains(alertId)) {
+        break;
+      }
       // Small gap between repetitions.
       await Future.delayed(const Duration(milliseconds: 400));
     }
-    // Final Beep Beep after the last repetition.
-    await triggerAlertFeedback();
+    // Final Beep Beep after the last repetition, only if not silenced/dismissed.
+    if (alertId == null || activeAlertIds.contains(alertId)) {
+      await triggerAlertFeedback();
+    }
+    if (alertId != null) {
+      activeAlertIds.remove(alertId);
+    }
   }
 
   // --- STAFF/DOCTOR SSE BACKGROUND LOGIC ---
@@ -193,6 +211,10 @@ void onStart(ServiceInstance service) async {
         final roomTxt = hasRoom ? roomLabel(event.wardName, event.roomNumber) : '';
         final roomSuffix = hasRoom ? ' $roomTxt' : '';
         final roomTxtPush = hasRoom ? ' (${event.wardName} - Rm ${event.roomNumber})' : '';
+
+        // Add to active set so announceRepeat can check it and we can snooze/cancel it.
+        final alertId = event.alertId;
+        activeAlertIds.add(alertId);
 
         // ── Determine alert type from vitalType / triggeredValue fields ───────
         // The server uses a single `critical_alert` SSE event for all alert
@@ -281,24 +303,43 @@ void onStart(ServiceInstance service) async {
             final ttsMsg = hasRoom
                 ? 'Patient Outbound. $nameTxt,$roomSuffix is Outbound.'
                 : 'Patient Outbound. $nameTxt is Outbound.';
-            await announceRepeat(flutterTts, ttsMsg);
+            await announceRepeat(flutterTts, ttsMsg, alertId: alertId);
           } else if (isBandRemoval) {
             // "Beep Beep – Patient Band Removed. Please attend {Name} {Room}" × 3
             final ttsMsg = hasRoom
                 ? 'Patient Band Removed. Please attend $nameTxt$roomSuffix.'
                 : 'Patient Band Removed. Please attend $nameTxt.';
-            await announceRepeat(flutterTts, ttsMsg);
+            await announceRepeat(flutterTts, ttsMsg, alertId: alertId);
           } else {
             // "Beep Beep – Patient Critical Alert. Please attend {Name} {Room} immediately" × 3
             await announceRepeat(
               flutterTts,
               'Patient Critical Alert. Please attend $nameTxt$roomSuffix immediately.',
+              alertId: alertId,
             );
           }
         } else {
           // TTS off — still fire the beep/vibration feedback.
           await triggerAlertFeedback();
         }
+
+      } else if (event is SseAlertSnoozedEvent) {
+        // ignore: avoid_print
+        print('[SSE Alert Snoozed] alertId=${event.alertId}');
+        activeAlertIds.remove(event.alertId);
+        await flutterTts.stop();
+        try {
+          await flutterLocalNotificationsPlugin.cancel(id: event.alertId);
+        } catch (_) {}
+
+      } else if (event is SseAlertResolvedEvent) {
+        // ignore: avoid_print
+        print('[SSE Alert Resolved] alertId=${event.alertId}');
+        activeAlertIds.remove(event.alertId);
+        await flutterTts.stop();
+        try {
+          await flutterLocalNotificationsPlugin.cancel(id: event.alertId);
+        } catch (_) {}
 
       } else if (event is SseBluetoothDisconnectEvent) {
         // ── Dedicated bluetooth_disconnect SSE event (future backend support) ──
