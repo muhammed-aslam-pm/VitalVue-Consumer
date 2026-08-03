@@ -106,3 +106,43 @@ class SseAlertResolvedEvent extends SseEvent {
         patientId: json['patient_id'] as int,
       );
 }
+
+/// `event: bluetooth_disconnect` — patient's band went out of range or dropped BLE.
+class SseBluetoothDisconnectEvent extends SseEvent {
+  const SseBluetoothDisconnectEvent({
+    required this.patientId,
+    required this.wardName,
+    required this.roomNumber,
+  });
+
+  final int patientId;
+  final String wardName;
+  final String roomNumber;
+
+  factory SseBluetoothDisconnectEvent.fromJson(Map<String, dynamic> json) =>
+      SseBluetoothDisconnectEvent(
+        patientId: json['patient_id'] as int,
+        wardName: json['ward_name'] as String? ?? '',
+        roomNumber: json['room_number'] as String? ?? '',
+      );
+}
+
+/// `event: band_removal` — patient's band was physically removed off-wrist.
+class SseBandRemovalEvent extends SseEvent {
+  const SseBandRemovalEvent({
+    required this.patientId,
+    required this.wardName,
+    required this.roomNumber,
+  });
+
+  final int patientId;
+  final String wardName;
+  final String roomNumber;
+
+  factory SseBandRemovalEvent.fromJson(Map<String, dynamic> json) =>
+      SseBandRemovalEvent(
+        patientId: json['patient_id'] as int,
+        wardName: json['ward_name'] as String? ?? '',
+        roomNumber: json['room_number'] as String? ?? '',
+      );
+}

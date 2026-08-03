@@ -132,6 +132,10 @@ class VitalsSseService {
             return SseAlertResolvedEvent.fromJson(json);
           }
           return SseCriticalAlertEvent.fromJson(json);
+        case 'bluetooth_disconnect':
+          return SseBluetoothDisconnectEvent.fromJson(json);
+        case 'band_removal':
+          return SseBandRemovalEvent.fromJson(json);
         default:
           return null;
       }

@@ -122,6 +122,35 @@ void onStart(ServiceInstance service) async {
     await Future.delayed(const Duration(milliseconds: 700));
   }
 
+  // ── Staff alert: Beep Beep + speech × 3, then a final Beep Beep ─────────────
+  // Pattern per client spec:
+  //   [Beep Beep] "<message>" [Beep Beep] "<message>" [Beep Beep] "<message>" [Beep Beep]
+  Future<void> announceRepeat(
+    FlutterTts tts,
+    String message, {
+    int times = 3,
+  }) async {
+    for (int i = 0; i < times; i++) {
+      // Play beep + vibration.
+      await triggerAlertFeedback();
+      // Speak the message and wait until it finishes.
+      final completer = Completer<void>();
+      tts.setCompletionHandler(() {
+        if (!completer.isCompleted) completer.complete();
+      });
+      await tts.speak(message);
+      // Guard: resolve after 10 s max in case the completion handler isn't fired.
+      await completer.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {},
+      );
+      // Small gap between repetitions.
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
+    // Final Beep Beep after the last repetition.
+    await triggerAlertFeedback();
+  }
+
   // --- STAFF/DOCTOR SSE BACKGROUND LOGIC ---
   final profile = await BackgroundPreferences.getProfile();
   if (profile != null && !profile.isPatient) {
@@ -142,33 +171,153 @@ void onStart(ServiceInstance service) async {
     await flutterTts.setVolume(1.0);
     await flutterTts.setSpeechRate(0.5);
 
+    // Helper to look up a patient name from cached preferences.
+    Future<String> resolvePatientName(int patientId) async {
+      final patientNames = await BackgroundPreferences.getPatientNames();
+      return patientNames[patientId] ?? 'Patient $patientId';
+    }
+
+    // Helper to build the room string for a TTS announcement.
+    String roomLabel(String wardName, String roomNumber) {
+      if (roomNumber.isEmpty) return '';
+      return '$wardName, Room $roomNumber';
+    }
+
     final sseSubscription = sseService.connect().listen((event) async {
       if (event is SseCriticalAlertEvent) {
         final enableTts = await BackgroundPreferences.getEnableTts();
         final enablePush = await BackgroundPreferences.getEnablePush();
 
-        final patientNames = await BackgroundPreferences.getPatientNames();
-        final pName = patientNames[event.patientId];
-        final nameTxt = pName ?? 'Patient ${event.patientId}';
-
+        final nameTxt = await resolvePatientName(event.patientId);
         final hasRoom = event.roomNumber.isNotEmpty;
-        final roomTxtTts =
-            hasRoom ? ' in ${event.wardName}, Room ${event.roomNumber}' : '';
+        final roomTxt = hasRoom ? roomLabel(event.wardName, event.roomNumber) : '';
+        final roomSuffix = hasRoom ? ' $roomTxt' : '';
+        final roomTxtPush = hasRoom ? ' (${event.wardName} - Rm ${event.roomNumber})' : '';
 
-        // ── Pre-announcement: long vibration + warning beep ──
-        // Always fires regardless of TTS/push settings.
-        await triggerAlertFeedback();
+        // ── Determine alert type from vitalType / triggeredValue fields ───────
+        // The server uses a single `critical_alert` SSE event for all alert
+        // types. The `vital_type` and `triggered_value` JSON fields tell us what
+        // actually happened.
+        final vt = event.vitalType.toLowerCase();
+        final tv = event.triggeredValue.toLowerCase();
+        // ignore: avoid_print
+        print('[SSE Alert] vitalType="${event.vitalType}" triggeredValue="${event.triggeredValue}" severity=${event.severity}');
+        final isDisconnect = vt.contains('disconnect') ||
+            vt.contains('outbound') ||
+            vt.contains('out of range') ||
+            vt.contains('bluetooth') ||
+            vt.contains('connectivity') ||
+            tv.contains('disconnect') ||
+            tv.contains('outbound') ||
+            tv.contains('out of range') ||
+            tv.contains('bluetooth');
+        final isBandRemoval = (vt.contains('band') && (vt.contains('remov') || vt.contains('off'))) ||
+            (tv.contains('band') && (tv.contains('remov') || tv.contains('off')));
 
-        if (enableTts) {
-          flutterTts.speak('Critical Alert for $nameTxt. ${event.vitalType}$roomTxtTts.');
+        // ── 1. Fire push notification IMMEDIATELY (don't wait for TTS) ────────
+        if (enablePush) {
+          if (isDisconnect) {
+            flutterLocalNotificationsPlugin.show(
+              id: event.alertId,
+              title: 'Patient Outbound: $nameTxt$roomTxtPush',
+              body: 'Band is out of range or disconnected.',
+              notificationDetails: const NotificationDetails(
+                android: AndroidNotificationDetails(
+                  'critical_alerts_channel',
+                  'Critical Alerts',
+                  icon: 'ic_bg_service_small',
+                  importance: Importance.max,
+                  priority: Priority.max,
+                  enableVibration: false,
+                  playSound: true,
+                  sound: RawResourceAndroidNotificationSound('warning_beep'),
+                ),
+              ),
+            );
+          } else if (isBandRemoval) {
+            flutterLocalNotificationsPlugin.show(
+              id: event.alertId,
+              title: 'Band Removed: $nameTxt$roomTxtPush',
+              body: 'Patient band was detected off-wrist.',
+              notificationDetails: const NotificationDetails(
+                android: AndroidNotificationDetails(
+                  'critical_alerts_channel',
+                  'Critical Alerts',
+                  icon: 'ic_bg_service_small',
+                  importance: Importance.max,
+                  priority: Priority.max,
+                  enableVibration: false,
+                  playSound: true,
+                  sound: RawResourceAndroidNotificationSound('warning_beep'),
+                ),
+              ),
+            );
+          } else {
+            // ── Critical Alert (vital threshold breach) ──
+            flutterLocalNotificationsPlugin.show(
+              id: event.alertId,
+              title: 'Critical Alert: ${event.vitalType} ($nameTxt$roomTxtPush)',
+              body: 'Value triggered: ${event.triggeredValue} (${event.severity})',
+              notificationDetails: const NotificationDetails(
+                android: AndroidNotificationDetails(
+                  'critical_alerts_channel',
+                  'Critical Alerts',
+                  icon: 'ic_bg_service_small',
+                  importance: Importance.max,
+                  priority: Priority.max,
+                  enableVibration: false,
+                  playSound: true,
+                  sound: RawResourceAndroidNotificationSound('warning_beep'),
+                ),
+              ),
+            );
+          }
         }
-        
+
+        // ── 2. Play the correct TTS announcement (3× repeat) ─────────────────
+        if (enableTts) {
+          if (isDisconnect) {
+            // "Beep Beep – Patient Outbound. {Name}, {Room} is Outbound" × 3
+            final ttsMsg = hasRoom
+                ? 'Patient Outbound. $nameTxt,$roomSuffix is Outbound.'
+                : 'Patient Outbound. $nameTxt is Outbound.';
+            await announceRepeat(flutterTts, ttsMsg);
+          } else if (isBandRemoval) {
+            // "Beep Beep – Patient Band Removed. Please attend {Name} {Room}" × 3
+            final ttsMsg = hasRoom
+                ? 'Patient Band Removed. Please attend $nameTxt$roomSuffix.'
+                : 'Patient Band Removed. Please attend $nameTxt.';
+            await announceRepeat(flutterTts, ttsMsg);
+          } else {
+            // "Beep Beep – Patient Critical Alert. Please attend {Name} {Room} immediately" × 3
+            await announceRepeat(
+              flutterTts,
+              'Patient Critical Alert. Please attend $nameTxt$roomSuffix immediately.',
+            );
+          }
+        } else {
+          // TTS off — still fire the beep/vibration feedback.
+          await triggerAlertFeedback();
+        }
+
+      } else if (event is SseBluetoothDisconnectEvent) {
+        // ── Dedicated bluetooth_disconnect SSE event (future backend support) ──
+        final enableTts = await BackgroundPreferences.getEnableTts();
+        final enablePush = await BackgroundPreferences.getEnablePush();
+
+        final nameTxt = await resolvePatientName(event.patientId);
+        final hasRoom = event.roomNumber.isNotEmpty;
+        final roomTxt = hasRoom ? roomLabel(event.wardName, event.roomNumber) : '';
+        final ttsMsg = hasRoom
+            ? 'Patient Outbound. $nameTxt, $roomTxt is Outbound.'
+            : 'Patient Outbound. $nameTxt is Outbound.';
+
         if (enablePush) {
           final roomTxtPush = hasRoom ? ' (${event.wardName} - Rm ${event.roomNumber})' : '';
           flutterLocalNotificationsPlugin.show(
-            id: event.alertId,
-            title: 'Critical Alert: ${event.vitalType} ($nameTxt$roomTxtPush)',
-            body: 'Value triggered: ${event.triggeredValue} (${event.severity})',
+            id: event.patientId * 10 + 1,
+            title: 'Patient Outbound: $nameTxt$roomTxtPush',
+            body: 'Band is out of range or disconnected.',
             notificationDetails: const NotificationDetails(
               android: AndroidNotificationDetails(
                 'critical_alerts_channel',
@@ -176,12 +325,55 @@ void onStart(ServiceInstance service) async {
                 icon: 'ic_bg_service_small',
                 importance: Importance.max,
                 priority: Priority.max,
-                enableVibration: false, // vibration handled separately
+                enableVibration: false,
                 playSound: true,
                 sound: RawResourceAndroidNotificationSound('warning_beep'),
               ),
             ),
           );
+        }
+        if (enableTts) {
+          await announceRepeat(flutterTts, ttsMsg);
+        } else {
+          await triggerAlertFeedback();
+        }
+
+      } else if (event is SseBandRemovalEvent) {
+        // ── Dedicated band_removal SSE event (future backend support) ──────────
+        final enableTts = await BackgroundPreferences.getEnableTts();
+        final enablePush = await BackgroundPreferences.getEnablePush();
+
+        final nameTxt = await resolvePatientName(event.patientId);
+        final hasRoom = event.roomNumber.isNotEmpty;
+        final roomTxt = hasRoom ? roomLabel(event.wardName, event.roomNumber) : '';
+        final ttsMsg = hasRoom
+            ? 'Patient Band Removed. Please attend $nameTxt $roomTxt.'
+            : 'Patient Band Removed. Please attend $nameTxt.';
+
+        if (enablePush) {
+          final roomTxtPush = hasRoom ? ' (${event.wardName} - Rm ${event.roomNumber})' : '';
+          flutterLocalNotificationsPlugin.show(
+            id: event.patientId * 10 + 2,
+            title: 'Band Removed: $nameTxt$roomTxtPush',
+            body: 'Patient band was detected off-wrist.',
+            notificationDetails: const NotificationDetails(
+              android: AndroidNotificationDetails(
+                'critical_alerts_channel',
+                'Critical Alerts',
+                icon: 'ic_bg_service_small',
+                importance: Importance.max,
+                priority: Priority.max,
+                enableVibration: false,
+                playSound: true,
+                sound: RawResourceAndroidNotificationSound('warning_beep'),
+              ),
+            ),
+          );
+        }
+        if (enableTts) {
+          await announceRepeat(flutterTts, ttsMsg);
+        } else {
+          await triggerAlertFeedback();
         }
       }
     });

@@ -234,6 +234,9 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
         } else if (ev is SseAlertResolvedEvent) {
           add(_SseAlertDismissedReceived(ev.alertId));
         }
+        // SseBluetoothDisconnectEvent and SseBandRemovalEvent are handled
+        // exclusively by the background service (audio/vibration + push
+        // notification). No bloc state change is needed here.
       },
     );
   }
