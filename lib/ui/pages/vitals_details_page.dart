@@ -32,6 +32,15 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
     _loadData();
   }
 
+  double _toDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) {
+      return double.tryParse(val) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   Future<void> _loadData() async {
     final db = VitalsDatabase.instance;
     final data = await db.getVitalsForLast24Hours();
@@ -41,13 +50,18 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
       final val = row[widget.dbColumnName];
       if (val == null) return false;
       
+      final numericVal = _toDouble(val);
       if (['hr', 'spo2', 'bpSys', 'hrv'].contains(widget.dbColumnName)) {
-        return val > 0;
+        return numericVal > 0;
       }
       if (widget.dbColumnName == 'battery') {
-        return val >= 0;
+        return numericVal >= 0;
       }
       return true; // allow 0 for steps, calories, stress, distance, etc.
+    }).map((row) {
+      final mapped = Map<String, dynamic>.from(row);
+      mapped[widget.dbColumnName] = _toDouble(row[widget.dbColumnName]);
+      return mapped;
     }).toList();
 
     setState(() {
@@ -189,8 +203,12 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
           // reverse list so newest is on top
           final data = _vitalsData[_vitalsData.length - 1 - index];
           final date = DateTime.fromMillisecondsSinceEpoch(data['timestamp']);
-          final value = data[widget.dbColumnName];
+          final rawValue = data[widget.dbColumnName];
           final isIngested = data['isIngested'] == 1;
+
+          final displayValue = rawValue is double && rawValue == rawValue.roundToDouble()
+              ? rawValue.toInt().toString()
+              : rawValue.toString();
 
           return ListTile(
             contentPadding: EdgeInsets.zero,
@@ -207,7 +225,7 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
               ),
             ),
             title: Text(
-              '$value ${widget.unit}',
+              '$displayValue ${widget.unit}',
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600, fontSize: 16),
             ),
             subtitle: Text(

@@ -523,18 +523,20 @@ void onStart(ServiceInstance service) async {
         );
         
         final db = VitalsDatabase.instance;
+        final hasNewBp = state.isNewBp;
+        final hasNewSpo2 = state.isNewSpo2;
         
         final vitalData = {
           'timestamp': DateTime.now().millisecondsSinceEpoch,
           'patient_id': profile.id,
           'device_id': deviceId,
           'hr': state.hr,
-          'spo2': state.spo2,
+          'spo2': hasNewSpo2 ? state.spo2 : 0,
           'tempC': state.tempC,
-          'bpSys': state.systolic ?? 0,
-          'bpDia': state.diastolic ?? 0,
-          'hrv': state.hrv ?? 0,
-          'stress': (state.stress ?? 0).toString(),
+          'bpSys': hasNewBp ? (state.systolic ?? 0) : 0,
+          'bpDia': hasNewBp ? (state.diastolic ?? 0) : 0,
+          'hrv': hasNewBp ? (state.hrv ?? 0) : 0,
+          'stress': hasNewBp ? (state.stress ?? 0).toString() : '0',
           'steps': state.steps,
           'calories': state.calories,
           'distanceKm': state.distanceKm,
@@ -549,12 +551,12 @@ void onStart(ServiceInstance service) async {
           patientId: profile.id,
           deviceId: deviceId,
           hr: state.hr,
-          spo2: state.spo2,
+          spo2: hasNewSpo2 ? state.spo2 : 0,
           tempC: state.tempC,
-          bpSys: state.systolic ?? 0,
-          bpDia: state.diastolic ?? 0,
-          hrv: state.hrv ?? 0,
-          stress: (state.stress ?? 0).toString(),
+          bpSys: hasNewBp ? (state.systolic ?? 0) : 0,
+          bpDia: hasNewBp ? (state.diastolic ?? 0) : 0,
+          hrv: hasNewBp ? (state.hrv ?? 0) : 0,
+          stress: hasNewBp ? (state.stress ?? 0).toString() : '0',
           steps: state.steps,
           calories: state.calories,
           distanceKm: state.distanceKm,

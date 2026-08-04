@@ -40,6 +40,7 @@ const cmdReadTempHistory = 0x62; // Temp history
 // ── Measurement sub-types ─────────────────────────────────────────────────────
 const measHr = 0x02;
 const measSpo2 = 0x03;
+const measHrv = 0x01;
 
 const _packetLen = 16;
 
@@ -194,6 +195,26 @@ class UnknownEvent extends BandEvent {
   final int dataType;
   final String raw;
   UnknownEvent({required this.dataType, required this.raw});
+}
+
+class ManualMeasurementEvent extends BandEvent {
+  final int type; // 1=HRV, 2=HR, 3=SpO2
+  final int hr;
+  final int spo2;
+  final int hrv;
+  final int stress;
+  final int systolic;
+  final int diastolic;
+
+  ManualMeasurementEvent({
+    required this.type,
+    required this.hr,
+    required this.spo2,
+    required this.hrv,
+    required this.stress,
+    required this.systolic,
+    required this.diastolic,
+  });
 }
 
 // ── Main codec class ──────────────────────────────────────────────────────────
@@ -387,6 +408,31 @@ class JStyleCodec {
         } catch (_) {}
       }
       return HistoryDataEvent(cmd: dt, records: records, isEnd: isEnd);
+    }
+
+    // Manual/active measurements (0x28)
+    if (dt == cmdMeasurementWithType) {
+      if (value.length > 7) {
+        final type = value[1] & 0xFF;
+        final hr = value[2] & 0xFF;
+        final spo2 = value[3] & 0xFF;
+        final hrv = value[4] & 0xFF;
+        final stress = value[5] & 0xFF;
+        final sys = value[6] & 0xFF;
+        final dia = value[7] & 0xFF;
+
+        if (hr > 0 || spo2 > 0 || hrv > 0 || stress > 0 || sys > 0 || dia > 0) {
+          return ManualMeasurementEvent(
+            type: type,
+            hr: hr,
+            spo2: spo2,
+            hrv: hrv,
+            stress: stress,
+            systolic: sys,
+            diastolic: dia,
+          );
+        }
+      }
     }
 
     return UnknownEvent(dataType: dt, raw: _hex(value));

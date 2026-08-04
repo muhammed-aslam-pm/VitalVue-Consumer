@@ -14,6 +14,9 @@ class DeviceScanSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
+      ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -52,98 +55,101 @@ class DeviceScanSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          BlocBuilder<BandMonitorBloc, BandMonitorState>(
-            builder: (context, state) {
-              if (state is BandScanningState && state.results.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        const CircularProgressIndicator(
-                            color: Color(0xFF1A73E8)),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Looking for devices…',
-                          style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                              fontSize: 14),
-                        ),
-                      ],
+          Flexible(
+            child: BlocBuilder<BandMonitorBloc, BandMonitorState>(
+              builder: (context, state) {
+                if (state is BandScanningState && state.results.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(
+                              color: Color(0xFF1A73E8)),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Looking for devices…',
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                fontSize: 14),
+                          ),
+                        ],
+                      ),
                     ),
+                  );
+                }
+
+                final results = state is BandScanningState ? state.results : [];
+
+                return ListView.separated(
+                  shrinkWrap: true,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: results.length,
+                  separatorBuilder: (_, __) => Divider(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                    height: 1,
                   ),
+                  itemBuilder: (context, i) {
+                    final r = results[i] as ScanResult;
+                    final name = r.device.platformName.isNotEmpty
+                        ? r.device.platformName
+                        : 'Unknown Device';
+                    final rssi = r.rssi;
+
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 0, vertical: 4),
+                      leading: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A73E8).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.watch_rounded,
+                            color: Color(0xFF1A73E8), size: 22),
+                      ),
+                      title: Text(
+                        name,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${r.device.remoteId.str}  •  $rssi dBm',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF1A73E8),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          context
+                              .read<BandMonitorBloc>()
+                              .add(ConnectToBand(r.device));
+                        },
+                        child: const Text('Connect',
+                            style: TextStyle(fontSize: 13)),
+                      ),
+                    )
+                        .animate()
+                        .fadeIn(delay: (i * 60).ms, duration: 300.ms)
+                        .slideX(begin: 0.1, end: 0);
+                  },
                 );
-              }
-
-              final results = state is BandScanningState ? state.results : [];
-
-              return ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: results.length,
-                separatorBuilder: (_, __) => Divider(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
-                  height: 1,
-                ),
-                itemBuilder: (context, i) {
-                  final r = results[i] as ScanResult;
-                  final name = r.device.platformName.isNotEmpty
-                      ? r.device.platformName
-                      : 'Unknown Device';
-                  final rssi = r.rssi;
-
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 0, vertical: 4),
-                    leading: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A73E8).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.watch_rounded,
-                          color: Color(0xFF1A73E8), size: 22),
-                    ),
-                    title: Text(
-                      name,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${r.device.remoteId.str}  •  $rssi dBm',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                        fontSize: 12,
-                      ),
-                    ),
-                    trailing: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A73E8),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        context
-                            .read<BandMonitorBloc>()
-                            .add(ConnectToBand(r.device));
-                      },
-                      child: const Text('Connect',
-                          style: TextStyle(fontSize: 13)),
-                    ),
-                  )
-                      .animate()
-                      .fadeIn(delay: (i * 60).ms, duration: 300.ms)
-                      .slideX(begin: 0.1, end: 0);
-                },
-              );
-            },
+              },
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
