@@ -600,11 +600,11 @@ void onStart(ServiceInstance service) async {
         final enableTts = await BackgroundPreferences.getEnableTts();
         final enablePush = await BackgroundPreferences.getEnablePush();
 
-        await triggerAlertFeedback();
-
         if (enableTts) {
-          await patientTts.speak(
+          await announceRepeat(patientTts,
               'Warning: Your band was disconnected accidentally. Attempting to reconnect.');
+        } else {
+          await triggerAlertFeedback();
         }
 
         if (enablePush) {
@@ -636,11 +636,11 @@ void onStart(ServiceInstance service) async {
         final enableTts = await BackgroundPreferences.getEnableTts();
         final enablePush = await BackgroundPreferences.getEnablePush();
 
-        await triggerAlertFeedback();
-
         if (enableTts) {
-          await patientTts.speak(
+          await announceRepeat(patientTts,
               'Warning: Band off wrist detected. Please put your band back on.');
+        } else {
+          await triggerAlertFeedback();
         }
 
         if (enablePush) {
