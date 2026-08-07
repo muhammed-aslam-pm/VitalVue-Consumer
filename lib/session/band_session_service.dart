@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -9,13 +8,8 @@ import '../protocol/jstyle_codec.dart';
 import '../db/vitals_database.dart';
 import 'band_timing_logger.dart';
 
-// ── Timer constants — match Python band_session.py exactly ──────────────────
-const _watchdogTimeoutS = 90; // HR=0 for >90s → band removed
-const _spo2KickIntervalS = 300; // SpO2 spot-check every 300s
-const _spo2KickDurationS = 45; // SpO2 PPG window
-const _spo2SuppressWindowS =
-    _spo2KickDurationS + 30; // suppress watchdog during PPG
-const _bpKickIntervalS = 300; // BP/HRV kick every 300s
+const _spo2KickIntervalS = 300; // SpO2 history sync every 300s
+const _bpKickIntervalS = 300; // BP/HRV history sync every 300s
 const _ingestIntervalS = 60; // cloud ingest every 60s
 const _loopTickS = 2; // main loop tick
 
@@ -140,12 +134,21 @@ class BandSessionService {
 
   Completer<void>? _historyStepsCompleter;
   Completer<void>? _historyHrCompleter;
+  Completer<void>? _historyBpCompleter;
 
   // Timestamp tracking.
   DateTime _lastValidHrTime = DateTime.now();
-  DateTime _lastSpo2KickTime = DateTime(2000);
   DateTime _lastKickTime = DateTime(2000);
   DateTime _lastBpKickTime = DateTime(2000);
+
+  // Watchdog gate: don't trigger off-wrist until we've seen at least one
+  // valid HR reading since connect.
+  bool _hasEverReceivedHr = false;
+
+  // Staleness guard: only emit a BP reading if its timestamp is newer than
+  // the last one we already surfaced. Prevents repeated identical values
+  // when the band returns the same flash record on every periodic kick.
+  DateTime? _lastBpRecordTimestamp;
 
   // Staleness tracking to detect phantom pulses (band off-wrist but reporting steady HR)
   final List<int> _hrHistory = [];
@@ -189,6 +192,7 @@ class BandSessionService {
     _firstTemp = true;
     _firstBp = true;
     _firstBattery = true;
+    _hasEverReceivedHr = false; // reset so watchdog doesn't fire before first HR
     _lastVitalsTime = null;
     _timingLogger = BandTimingLogger(deviceId: deviceId);
     await _timingLogger?.open();
@@ -216,9 +220,7 @@ class BandSessionService {
 
     // Start the main loop and ingest loop.
     final now = DateTime.now();
-    _lastKickTime =
-        now.subtract(const Duration(seconds: _spo2KickIntervalS - 40));
-    _lastSpo2KickTime = _lastKickTime;
+    _lastKickTime = now;
     _lastBpKickTime = now;
     _lastValidHrTime = now;
 
@@ -259,124 +261,68 @@ class BandSessionService {
   // ── Init sequence — matches Python _init_sequence() ───────────────────────
 
   Future<void> _initSequence() async {
-    // Note: Do NOT use setMeasurement here, as forcefully starting manual measurement
-    // turns the LED on immediately, overriding off-wrist detection.
-    // However, setAutoMeasurement is safe as it only configures the background monitoring scheduler.
-
+    // 1. Enable continuous real-time streaming (0x09) — step, temp, HR, SpO2
     await _write(
         'RealTimeStep', _codec.realTimeStep(enable: true, tempEnable: true));
     await _write('SetDeviceTime', _codec.setDeviceTime());
     await _write('SetPersonalInfo', _codec.setPersonalInfo(_personalInfo));
     await _write('GetBattery', _codec.getBattery());
 
-    // Enable background periodic auto-monitoring
+    // 2. Enable background periodic auto-monitoring (mode 2 = interval measurement)
     await _write('SetAutoHR',
-        _codec.setAutoMeasurement(1, 10, enable: true)); // HR every 10 mins
+        _codec.setAutoMeasurement(1, 1, enable: true, mode: 2)); // HR every 1 min
     await _write('SetAutoSpO2',
-        _codec.setAutoMeasurement(2, 30, enable: true)); // SpO2 every 30 mins
+        _codec.setAutoMeasurement(2, 5, enable: true, mode: 2)); // SpO2 every 5 mins
     await _write('SetAutoTemp',
-        _codec.setAutoMeasurement(3, 30, enable: true)); // Temp every 30 mins
+        _codec.setAutoMeasurement(3, 5, enable: true, mode: 2)); // Temp every 5 mins
     await _write('SetAutoHRV',
-        _codec.setAutoMeasurement(4, 30, enable: true)); // HRV/BP every 30 mins
+        _codec.setAutoMeasurement(4, 5, enable: true, mode: 2)); // HRV/BP every 5 mins
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    // 3. Fetch initial history from device flash
+    await _write('GetHistorySpo2', _codec.getHistorySpo2());
+    await _write('GetHistoryBP', _codec.getBpHrvData());
 
-    /*
-    // Fetch History Data
-    try {
-      debugPrint('[$deviceId] Fetching Steps History...');
-      _historyStepsCompleter = Completer<void>();
-      await _write('GetHistorySteps', _codec.getHistorySteps());
-      await _historyStepsCompleter!.future.timeout(const Duration(seconds: 15));
-    } catch (e) {
-      debugPrint('[$deviceId] Steps history sync timeout/error: $e');
-    }
-
-    try {
-      debugPrint('[$deviceId] Fetching HR History...');
-      _historyHrCompleter = Completer<void>();
-      await _write('GetHistoryHR', _codec.getHistoryHeartRate());
-      await _historyHrCompleter!.future.timeout(const Duration(seconds: 15));
-    } catch (e) {
-      debugPrint('[$deviceId] HR history sync timeout/error: $e');
-    }
-    */
+    final now = DateTime.now();
+    _lastKickTime = now;
+    _lastBpKickTime = now;
   }
 
-  // ── Main loop tick — matches Python while self.ble.connected ──────────────
+  // ── Main loop tick ─────────────────────────────────────────────────────────
 
   void _tick() {
     if (!_ble.isConnected) return;
 
     final now = DateTime.now();
 
-    final isProcessingSpo2 =
-        now.difference(_lastSpo2KickTime).inSeconds < _spo2SuppressWindowS;
-
-    // ── Off-wrist watchdog ────────────────────────────────────────────────
-    if (!isProcessingSpo2) {
+    // ── Off-wrist watchdog ───────────────────────────────────────────────────
+    if (_hasEverReceivedHr) {
       final secondsSinceValidHr = now.difference(_lastValidHrTime).inSeconds;
 
-      if (secondsSinceValidHr > _watchdogTimeoutS) {
-        if (!_state.isRemoved || _state.hr > 0) {
-          debugPrint(
-              '[$deviceId] WATCHDOG: HR flatlined >$_watchdogTimeoutS s. Band removed.');
-          _emit(_state.copyWith(isRemoved: true, hr: 0, spo2: 0, tempC: 0.0));
-        }
-      }
-
-      // Stream stall recovery (HR dead for >120s): re-kick HR streaming.
-      if (secondsSinceValidHr > 120) {
-        debugPrint('[$deviceId] Stalled stream. Issuing restart handshake.');
-        _write('Recover_RealTime',
-            _codec.realTimeStep(enable: true, tempEnable: true));
-        _lastValidHrTime = now; // reset to prevent spam
-      }
-    }
-
-    // ── SpO2 restore after PPG window ends ─────────────────────────────────
-    final spo2Elapsed = now.difference(_lastSpo2KickTime).inSeconds;
-    if (_lastSpo2KickTime.year > 2000 &&
-        spo2Elapsed >= _spo2KickDurationS + 2 &&
-        spo2Elapsed < _spo2KickDurationS + 4) {
-      debugPrint('[$deviceId] SpO2 cycle finished. Restoring streaming mode.');
-      _write('Restore_Stream',
-          _codec.realTimeStep(enable: true, tempEnable: true));
-      _write('Kickstart_HR', _codec.setMeasurement(measHr, 3600, open: true));
-      _lastValidHrTime = now;
-    }
-
-    // ── SpO2 and BP kick scheduling ────────────────────────────────────────
-    if (!_state.isRemoved) {
-      final triggerSpo2 =
-          now.difference(_lastKickTime).inSeconds >= _spo2KickIntervalS;
-      final triggerBp =
-          now.difference(_lastBpKickTime).inSeconds >= _bpKickIntervalS;
-
-      // Collision guard: if both fire at once, delay BP by 5 s.
-      if (triggerSpo2 && triggerBp) {
+      // Declare removed if no valid HR received for >= 60s
+      if (secondsSinceValidHr >= 60 && !_state.isRemoved) {
         debugPrint(
-            '[$deviceId] Collision detected. Slotting BP 5s into future.');
-        _lastSpo2KickTime = now;
+            '[$deviceId] WATCHDOG: No valid HR for >=${secondsSinceValidHr}s. Band REMOVED.');
+        _emit(_state.copyWith(isRemoved: true, hr: 0, spo2: 0));
+      }
+    }
+
+    // ── Periodic history sync (BP & SpO2) ────────────────────────────────────
+    if (!_state.isRemoved) {
+      final spo2CheckInterval = _state.spo2 == 0 ? 30 : _spo2KickIntervalS;
+      final bpCheckInterval = _state.systolic == null ? 30 : _bpKickIntervalS;
+
+      final triggerSpo2 =
+          now.difference(_lastKickTime).inSeconds >= spo2CheckInterval;
+      final triggerBp =
+          now.difference(_lastBpKickTime).inSeconds >= bpCheckInterval;
+
+      if (triggerSpo2) {
         _lastKickTime = now;
-        _write('SpO2_Kick',
-            _codec.setMeasurement(measSpo2, _spo2KickDurationS, open: true));
-        _delayedBpTimer?.cancel();
-        _delayedBpTimer = Timer(const Duration(seconds: 5), () {
-          _write('BP_HRV_Kick', _codec.getBpHrvData());
-        });
+        _write('GetHistorySpo2', _codec.getHistorySpo2());
+      }
+      if (triggerBp) {
         _lastBpKickTime = now;
-      } else {
-        if (triggerSpo2) {
-          _lastSpo2KickTime = now;
-          _lastKickTime = now;
-          _write('SpO2_Kick',
-              _codec.setMeasurement(measSpo2, _spo2KickDurationS, open: true));
-        }
-        if (triggerBp) {
-          _lastBpKickTime = now;
-          _write('BP_HRV_Kick', _codec.getBpHrvData());
-        }
+        _write('GetHistoryBP', _codec.getBpHrvData());
       }
     }
   }
@@ -389,53 +335,30 @@ class BandSessionService {
 
     switch (event) {
       case HistoryDataEvent(:final records, :final isEnd, :final cmd):
-        _ingestHistoryRecords(records);
-        if (isEnd) {
-          if (cmd == cmdGetDetailData &&
-              _historyStepsCompleter?.isCompleted == false) {
-            _historyStepsCompleter!.complete();
-          } else if (cmd == cmdGetHeartData &&
-              _historyHrCompleter?.isCompleted == false) {
-            _historyHrCompleter!.complete();
-          }
-        }
+        _handleHistoryData(cmd: cmd, records: records, isEnd: isEnd);
         break;
 
       case RealtimeEvent(:final data):
         var next = _state;
         if (data.hr > 0) {
-          _hrHistory.add(data.hr);
-          if (_hrHistory.length > 90) {
-            _hrHistory.removeAt(0);
-          }
-
-          bool isStale = false;
-          if (_hrHistory.length >= 90) {
-            final minHr = _hrHistory.reduce(math.min);
-            final maxHr = _hrHistory.reduce(math.max);
-            // If the HR hasn't varied by more than 2 bpm over 90 seconds, it's a phantom pulse
-            if (maxHr - minHr <= 2) {
-              isStale = true;
-            }
-          }
-
-          if (isStale) {
-            next = next.copyWith(
-                hr: 0, spo2: 0, tempC: 0.0, isRemoved: true, clearError: true);
-            // DO NOT update _lastValidHrTime, so watchdog also trips if needed
-          } else {
-            next =
-                next.copyWith(hr: data.hr, isRemoved: false, clearError: true);
-            _lastValidHrTime = DateTime.now();
-          }
+          next =
+              next.copyWith(hr: data.hr, isRemoved: false, clearError: true);
+          _lastValidHrTime = DateTime.now();
+          _hasEverReceivedHr = true; // unlock the watchdog
         } else {
           // data.hr == 0
-          _hrHistory.clear(); // Reset history if we get a true 0 reading
+          _hrHistory.clear();
         }
 
-        if (data.spo2 > 0)
+        if (data.spo2 > 0) {
           next = next.copyWith(spo2: data.spo2, isNewSpo2: true);
-        if (data.tempC > 0) next = next.copyWith(tempC: data.tempC);
+        }
+        // Update tempC from realtime packet only when the sensor returns a valid reading.
+        // A zero tempC means the sensor hasn't warmed up yet — don't overwrite the last
+        // valid reading, which is used as the temperature-veto guard in the watchdog.
+        if (data.tempC > 0) {
+          next = next.copyWith(tempC: data.tempC);
+        }
 
         // Update activity metrics (steps, calories, distance)
         next = next.copyWith(
@@ -508,40 +431,6 @@ class BandSessionService {
             'Steps=${next.steps}  Cal=${next.calories}  Dist=${next.distanceKm}km  '
             '| removed=${next.isRemoved}');
 
-      case BpResultEvent(
-          :final systolic,
-          :final diastolic,
-          :final hrv,
-          :final stress
-        ):
-        if (systolic > 0 && diastolic > 0) {
-          // BP receipt also proves band is on wrist — refresh watchdog.
-          _lastValidHrTime = DateTime.now();
-          _emit(_state.copyWith(
-            systolic: systolic,
-            diastolic: diastolic,
-            hrv: hrv,
-            stress: stress,
-            isRemoved: false,
-            clearError: true,
-            isNewBp: true,
-          ));
-          if (_firstBp) {
-            _firstBp = false;
-            final sinceConnect = _connectTime != null
-                ? DateTime.now().difference(_connectTime!).inMilliseconds
-                : -1;
-            debugPrint(
-                '[$deviceId] ⏱ First BP ($systolic/$diastolic mmHg) received ${sinceConnect}ms after connect');
-            _timingLogger?.log('first_bp',
-                sinceConnectMs: sinceConnect,
-                intervalMs: null,
-                note: '${systolic}/${diastolic}mmHg hrv:$hrv stress:$stress');
-          }
-          debugPrint(
-              '[$deviceId] BP received: $systolic/$diastolic mmHg, HRV: $hrv, Stress: $stress');
-        }
-
       case ManualMeasurementEvent(
           :final type,
           :final hr,
@@ -551,6 +440,8 @@ class BandSessionService {
           :final systolic,
           :final diastolic
         ):
+        // 0x28 live spot-check measurement — separate from 0x56 history.
+        // Keeps working regardless of whether any history is stored yet.
         _lastValidHrTime = DateTime.now();
         final hrVal = hr > 0 ? hr : _state.hr;
         final spo2Val = spo2 > 0 ? spo2 : _state.spo2;
@@ -570,14 +461,21 @@ class BandSessionService {
           clearError: true,
           isNewBp: systolic > 0 && diastolic > 0,
         ));
+        if (_firstBp && systolic > 0 && diastolic > 0) {
+          _firstBp = false;
+          final sinceConnect = _connectTime != null
+              ? DateTime.now().difference(_connectTime!).inMilliseconds
+              : -1;
+          debugPrint(
+              '[$deviceId] ⏱ First BP ($systolic/$diastolic mmHg) received ${sinceConnect}ms after connect (live spot-check)');
+          _timingLogger?.log('first_bp',
+              sinceConnectMs: sinceConnect,
+              intervalMs: null,
+              note: '$systolic/${diastolic}mmHg hrv:$hrv stress:$stress');
+        }
         debugPrint(
-            '[$deviceId] Manual Measurement type=$type received: HR=$hr, SpO2=$spo2, HRV=$hrv, Stress=$stress, BP=$systolic/$diastolic');
-
-      case BpNoDataEvent():
-        // Device responded (band is on-wrist) — refresh watchdog.
-        _lastValidHrTime = DateTime.now();
-        debugPrint(
-            '[$deviceId] BP request answered, but no valid data read yet.');
+            '[$deviceId] Manual Measurement type=$type: HR=$hr SpO2=$spo2 '
+            'HRV=$hrv Stress=$stress BP=$systolic/$diastolic');
 
       case BatteryEvent(:final percent):
         _emit(_state.copyWith(battery: percent));
@@ -591,7 +489,7 @@ class BandSessionService {
           _timingLogger?.log('first_battery',
               sinceConnectMs: sinceConnect,
               intervalMs: null,
-              note: '${percent}%');
+              note: '$percent%');
         }
         debugPrint('[$deviceId] BATTERY  $percent%');
 
@@ -610,7 +508,9 @@ class BandSessionService {
     for (final r in records) {
       // Ignore records older than 24 hours or in the future (due to band clock errors)
       if (r.timestamp.isBefore(oneDayAgo) ||
-          r.timestamp.isAfter(oneHourFromNow)) continue;
+          r.timestamp.isAfter(oneHourFromNow)) {
+        continue;
+      }
 
       final map = <String, dynamic>{
         'timestamp': r.timestamp.millisecondsSinceEpoch,
@@ -633,7 +533,147 @@ class BandSessionService {
     await VitalsDatabase.instance.deleteOldVitals();
   }
 
-  // ── Database Ingest Loop — matches Python _ingest_to_cloud() ───────────────────────────────────────────────────────────
+  // ── History data dispatcher ─────────────────────────────────────────────────
+
+  /// Routes incoming HistoryDataEvent to the right handler.
+  /// BP/HRV records update live state (with staleness guard + pagination).
+  /// All other history types are persisted to the local database.
+  void _handleHistoryData({
+    required int cmd,
+    required List<HistoryRecord> records,
+    required bool isEnd,
+  }) {
+    if (cmd == cmdGetHrvData) {
+      // ── BP/HRV history ────────────────────────────────────────────────────
+      // Records arrive oldest-first; find the most recent valid one.
+      // Staleness guard: only emit if this record's timestamp is newer than
+      // the last one we already surfaced (prevents repeated identical values).
+      HistoryBpHrv? latestRecord;
+      for (final r in records) {
+        if (r is HistoryBpHrv) {
+          if (latestRecord == null ||
+              r.timestamp.isAfter(latestRecord.timestamp)) {
+            latestRecord = r;
+          }
+        }
+      }
+
+      if (latestRecord != null) {
+        final cutoffTime = _connectTime != null
+            ? _connectTime!.subtract(const Duration(minutes: 15))
+            : DateTime.now().subtract(const Duration(minutes: 15));
+        final isFreshSessionRecord =
+            latestRecord.timestamp.isAfter(cutoffTime);
+        final isNewer = _lastBpRecordTimestamp == null ||
+            latestRecord.timestamp.isAfter(_lastBpRecordTimestamp!);
+
+        if (isFreshSessionRecord && isNewer) {
+          _lastBpRecordTimestamp = latestRecord.timestamp;
+          // BP receipt proves the band is worn — refresh watchdog.
+          _lastValidHrTime = DateTime.now();
+
+          _emit(_state.copyWith(
+            systolic: latestRecord.systolic,
+            diastolic: latestRecord.diastolic,
+            hrv: latestRecord.hrv,
+            stress: latestRecord.stress,
+            isRemoved: false,
+            clearError: true,
+            isNewBp: true,
+          ));
+
+          if (_firstBp) {
+            _firstBp = false;
+            final sinceConnect = _connectTime != null
+                ? DateTime.now().difference(_connectTime!).inMilliseconds
+                : -1;
+            debugPrint(
+                '[$deviceId] First BP '
+                '(${latestRecord.systolic}/${latestRecord.diastolic} mmHg) '
+                'received ${sinceConnect}ms after connect '
+                '(record ts: ${latestRecord.timestamp})');
+            _timingLogger?.log('first_bp',
+                sinceConnectMs: sinceConnect,
+                intervalMs: null,
+                note: '${latestRecord.systolic}/${latestRecord.diastolic}mmHg '
+                    'hrv:${latestRecord.hrv} stress:${latestRecord.stress}');
+          }
+          debugPrint(
+              '[$deviceId] BP history: '
+              '${latestRecord.systolic}/${latestRecord.diastolic} mmHg  '
+              'HRV:${latestRecord.hrv}  Stress:${latestRecord.stress}  '
+              'ts:${latestRecord.timestamp}');
+        } else {
+          debugPrint(
+              '[$deviceId] BP history record ignored (older than current session / not newer). '
+              'ts: ${latestRecord.timestamp}');
+        }
+      } else {
+        // Band replied but all records were all-zero: no background
+        // measurements stored yet. auto-HRV will populate flash after the
+        // first 30-min background cycle.
+        debugPrint(
+            '[$deviceId] BP history: band responded, no data yet '
+            '(auto-HRV will populate flash after first background cycle).');
+      }
+
+      // Paginate if the band still has more records to send.
+      if (!isEnd) {
+        debugPrint('[$deviceId] BP history: paginating (mode=0x02)...');
+        _write('BP_HRV_Continue', _codec.getBpHrvDataWithMode(0x02));
+      } else {
+        if (_historyBpCompleter?.isCompleted == false) {
+          _historyBpCompleter!.complete();
+        }
+      }
+      return;
+    }
+
+    if (cmd == cmdGetOxygenData || cmd == 0xAB) {
+      // ── Historical SpO2 ───────────────────────────────────────────────────
+      HistorySpo2? latestRecord;
+      for (final r in records) {
+        if (r is HistorySpo2) {
+          if (latestRecord == null ||
+              r.timestamp.isAfter(latestRecord.timestamp)) {
+            latestRecord = r;
+          }
+        }
+      }
+      final cutoffTime = _connectTime != null
+          ? _connectTime!.subtract(const Duration(minutes: 15))
+          : DateTime.now().subtract(const Duration(minutes: 15));
+      if (latestRecord != null &&
+          latestRecord.spo2 > 0 &&
+          latestRecord.timestamp.isAfter(cutoffTime)) {
+        debugPrint(
+            '[$deviceId] SpO2 history: ${latestRecord.spo2}% (ts: ${latestRecord.timestamp})');
+        _emit(_state.copyWith(
+          spo2: latestRecord.spo2,
+          isNewSpo2: true,
+        ));
+      } else if (latestRecord != null) {
+        debugPrint(
+            '[$deviceId] SpO2 history record ignored (older than current session). '
+            'ts: ${latestRecord.timestamp}');
+      }
+      return;
+    }
+
+    // ── All other history types (HR, Steps) ───────────────────────────────────
+    _ingestHistoryRecords(records);
+    if (isEnd) {
+      if (cmd == cmdGetDetailData &&
+          _historyStepsCompleter?.isCompleted == false) {
+        _historyStepsCompleter!.complete();
+      } else if (cmd == cmdGetHeartData &&
+          _historyHrCompleter?.isCompleted == false) {
+        _historyHrCompleter!.complete();
+      }
+    }
+  }
+
+  // ── Database Ingest Loop — matches Python _ingest_to_cloud() ────────────────
 
   Future<void> _runIngest() async {
     try {
@@ -699,7 +739,6 @@ class BandSessionService {
         final now = DateTime.now();
         _lastKickTime =
             now.subtract(const Duration(seconds: _spo2KickIntervalS - 40));
-        _lastSpo2KickTime = _lastKickTime;
         _lastBpKickTime = now;
         _lastValidHrTime = now;
 
@@ -727,5 +766,11 @@ class BandSessionService {
     _mainLoopTimer = null;
     _ingestTimer = null;
     _delayedBpTimer = null;
+    // Unblock any pending BP history fetch so _initSequence never hangs
+    // during auto-reconnect cycles.
+    if (_historyBpCompleter?.isCompleted == false) {
+      _historyBpCompleter!.completeError('cancelled');
+    }
+    _historyBpCompleter = null;
   }
 }

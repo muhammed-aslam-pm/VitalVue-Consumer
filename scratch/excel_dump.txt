@@ -1,0 +1,988 @@
+=== sharedStrings.xml ===
+0: 蓝牙穿戴产品API 协议    产品名称：智能设备 型号：V5
+Bluetooth Wearable Product API Protocol. Product Name:Smart Band. Model: V5
+1: 序号
+2: 
+Serial Number
+3: 功能描述
+4: 
+Function Description
+5: 命令格式描述
+6: 设置时间
+7: 
+Set Time
+8: 取得时间
+9: 
+Get time
+10: 设置用户个人信息
+11: 
+Set user personal information
+12: 读取用户个人信息
+13: 
+Get user personal information
+14: 设置设备
+15: ID
+16: 码
+17: 
+Set ring ID
+18: 读取设备电量
+19: 
+Read ring battery level
+20: 读取
+21: MAC
+22: 地址
+23: 
+Read MAC address
+24: 读取固件版本号
+25: 
+Read firmware version
+26: 恢复出厂设置
+27: 
+Restore factory settings
+28: MCU
+29: 软复位
+30: 
+MCU soft reset
+31: 实时计步
+32: /
+33: 心率
+34: /
+35: 血氧
+36: /
+37: 体温数据传输模式
+38: 
+Real-time Step/HR/Oxygen/Temperature Data Transmission Mode
+39: 设置自动检测心率
+40: /
+41: 血氧
+42: /HRV
+43: 等的时间间隔
+44: 
+Set the time interval for automatic detection of heart rate, blood oxygen, HRV, etc.
+45: 读取自动检测心率
+46: /
+47: 血氧
+48: /HRV
+49: 等的时间间隔
+50: 
+Get the time interval for automatic detection of heart rate, blood oxygen, HRV, etc.
+51: 获得计步总数据
+52: 
+Get total step count data
+53: 获得步数详细数据（一条数据包含十分钟内每分钟的具体步数）
+54: 
+Obtain detailed step count data (one entry contains the specific step count for each minute within a 10-minute period)
+55: 获得睡眠历史数据
+56: 
+Obtain historical sleep data
+57: 获得心率数据（读取详细的心率数据，长时间测量的心率详细数据）
+58: 
+Obtain heart rate data (retrieve detailed heart rate data, including long-term measurement heart rate details)
+59: 获得心率测量历史数据（测量的单个心率值）
+60: 
+Obtain heart rate measurement history data (individual heart rate values measured)
+61: 获得
+62: HRV
+63: 测量历史数据
+64: 
+Obtain HRV measurement history data
+65: 获得日常温度历史数据
+66: 
+Obtain daily temperature history data
+67: 获得血氧历史数据（自动测试数据）
+68: 
+Obtain historical blood oxygen data (automatic test data).
+69: 多参数综合健康测量（心率
+70: /
+71: 血氧
+72: /HRV/
+73: 血压
+74: /
+75: 压力等）
+76: 
+Multi-parameter comprehensive health measurement (heart rate, blood oxygen, HRV, blood pressure, stress, etc.)
+77: 命令格式：
+78:  0x14 00 00 00 00 00 00 00 00 00 00 00 00 00 00 CRC
+                   0x14 AA BB CC DD T1 T2 T3 T4 T5 T6 00 00 00 00 CRC
+AA BB:
+79: 最终温度值，使用三个通道的最大值，高位在后，保留一位小数
+80: 
+T1 T2: 
+81: 温度值，高位在后，保留一位小数
+82: 
+ 
+83: BleSDK.SetDeviceTime(MyDeviceTime )
+
+84: Parameter 
+85: Calendar calendar=Calendar.getInstance();
+        int year=calendar.get(Calendar.YEAR);
+        int month=calendar.get(Calendar.MONTH)+1;
+        int day=calendar.get(Calendar.DAY_OF_MONTH);
+        int hour=calendar.get(Calendar.HOUR_OF_DAY);
+        int min=calendar.get(Calendar.MINUTE);
+        int second=calendar.get(Calendar.SECOND);
+        MyDeviceTime setTime=new MyDeviceTime();
+        setTime.setYear(year);
+        setTime.setMonth(month);
+        setTime.setDay(day);
+        setTime.setHour(hour);
+        setTime.setMinute(min);
+        setTime.setSecond(second);
+        sendValue(BleSDK.SetDeviceTime(setTime));
+86: Data returned
+87: BleSDK.GetDeviceTime()
+88: {dataEnd=true, dataType=0, dicData={strDeviceTime=2025-08-19 15:12:18, weekValue=2, MTUlength=244, gpsExpirationTime=00.00.00}}
+89: {dataEnd=true, dataType=1, dicData={MTUlength=244}}
+90: BleSDK.GetPersonalInfo()
+91: {dataEnd=true, dataType=2, dicData={MyStride=63, MyAge=37, MyWeight=69, MyGender=1, MyHeight=181, deviceId=000000}}
+
+
+ MyGender=1 MAN
+MyGender=0 WOMEN 
+92: {dataEnd=true, dataType=3, dicData={}}
+93: BleSDK.SetPersonalInfo(setPersonalInfo)
+94: MyPersonalInfo setPersonalInfo = new MyPersonalInfo();
+        setPersonalInfo.setAge(age);//
+95: 年龄
+96:  Age
+        setPersonalInfo.setHeight(height);//
+97: 身高
+98:  height
+        setPersonalInfo.setWeight(weight);//
+99: 体重
+100:  weight
+        setPersonalInfo.setStepLength(stepLength);//
+101: 步长
+102:   step length
+        setPersonalInfo.setSex(gender);//
+103: 性别
+104:  Gender  1 male,0female
+105: BleSDK.SetDeviceID(String deviceId)
+106: deviceId:  aabbccddeeff
+107: {dataEnd=true, dataType=6, dicData={}}
+108: {dataEnd=true, dataType=9, dicData={Chargingstate=0, batteryLevel=71, VoltageValue=13632}}
+
+
+Chargingstate=0 Charging status not charged
+
+
+109: BleSDK.GetDeviceBatteryLevel()
+110: BleSDK.GetDeviceMacAddress()
+111: {dataEnd=true, dataType=10, dicData={macAddress=D6:AE:FB:AE:33:CC}}
+112: {dataEnd=true, dataType=11, dicData={deviceVersion=0.0.3.4}}
+113: BleSDK.GetDeviceVersion()
+114: BleSDK.Reset()
+115: 注意：恢复出厂设置设备功能需要谨慎使用，设备型号不同，可能进行的步骤
+116:  
+1.
+117: 此功能会自动断开蓝牙
+118:  
+2.
+119: 设备会删除设备数据重启
+120:  
+3.
+121: 充电激活设备
+122:  
+ Attention: Restoring factory settings to device functions requires caution when using, as different device models may require different steps to be taken
+1. This function will automatically disconnect Bluetooth
+2. The device will delete device data and restart
+3. Charging activation device
+
+123: 功能：复位主控
+124: MCU 
+
+125: 描述：重启主控，重置测量模式
+126:  
+
+127: ﻿
+128: Function: Reset the main control MCU
+Description: Restart the main control and reset the measurement mode
+129: BleSDK.MCUReset())
+130: V{dataEnd=true, dataType=13, dicData={}}
+131: {dataEnd=true, dataType=23, dicData={distance=0.32, heartRate=0, step=462, ExerciseTime=0, Blood_oxygen=0, calories=15.5, exerciseMinutes=3, TempData=31.6}}
+
+ExerciseTime=0
+exerciseMinutes=3
+
+
+132: 运动时间
+快速运动时间
+
+133: Exercise time
+Rapid exercise time
+134: BleSDK.RealTimeStep(boolean enable, boolean tempEnable)
+
+
+
+135: 测量心率，血氧时需要结合以下方式同步使用
+
+136: When measuring heart rate and blood oxygen, it is necessary to use the following methods simultaneously
+BleSDK.SetDeviceMeasurementWithType(autoTestMode,time,open)
+
+SetDeviceMeasurementWithType(AutoTestMode dataType, long second, boolean open)
+
+AutoTestMode
+137: ：
+138: AutoHeartRate/AutoSpo2
+second  : Must be greater than 30 seconds
+open:true/false    Open or close
+139: BleSDK.SetAutomaticHRMonitoring(MyAutomaticHRMonitoring autoHeart, AutoMode type)
+140: MyAutomaticHRMonitoring{
+
+   int open;//1 
+141: 开启整个时间段都测量
+142:  2
+143: 时间段内间隔测量
+144:  0
+145: 关闭
+146:   1. Measure the entire time period. 2. Measure the interval within the time period. 0. Close
+    // 1. Enable measurement throughout the entire time period 2. Measure intervals within the time period 0. Close
+    int startHour;//
+147: 开始小时
+148:  Starting hours
+    int startMinute;//
+149: 开始分钟
+150:   Start minute
+    int endHour;//
+151: 结束小时
+152:   End Hour
+    int endMinute;//
+153: 结束分钟
+154:   End minute
+    int week;//
+155: 星期一到星期日
+156:  
+157: 开启选择
+158:   Monday to Sunday open selection
+    int time;//
+159: 多少时间测试一次，单位是分钟。
+160:  How many times does it take to test, in minutes.
+
+}
+
+
+
+
+AutoMode{
+
+ AutoHeartRate, AutoSpo2,AutoTemp,AutoHrv
+}
+161: {dataEnd=true, dataType=17, dicData={}}
+162: BleSDK.GetAutomatic(autoMode)
+
+
+
+163: enum AutoMode {
+    AutoHeartRate, AutoSpo2,AutoTemp,AutoHrv
+}
+164: {dataEnd=true, dataType=16, dicData={heartStartMinter=00, weekValue=1-1-1-1-1-1-1, workModel=2, heartEndHour=23, heartEndMinter=59, heartStartHour=00, intervalTime=5}}
+
+
+
+165: 字段介绍参考上面
+166: 12
+167: 项
+168: MyAutomaticHRMonitoring
+
+Reference 12 fields for field introduction: MyAutomaticHRMonitoring
+169: {dataEnd=false, dataType=24, dicData=[{date=2025.08.19, goal=0, distance=0.33, step=473, ExerciseTime=0, calories=15.91, exerciseMinutes=226}, {date=2025.08.18, goal=0, distance=0.00, step=0, ExerciseTime=0, calories=0.00, exerciseMinutes=0}, {date=2025.08.17, goal=0, distance=0.00, step=0, ExerciseTime=0, calories=0.00, exerciseMinutes=0}, {date=2025.08.16, goal=0, distance=0.00, step=2851, ExerciseTime=3, calories=94.54, exerciseMinutes=1483}, {date=2025.08.15, goal=0, distance=0.00, step=3278, ExerciseTime=1, calories=110.51, exerciseMinutes=1570}, {date=2025.08.14, goal=0, distance=0.00, step=0, ExerciseTime=0, calories=0.00, exerciseMinutes=0}, {date=2025.08.13, goal=0, distance=0.00, step=452, ExerciseTime=0, calories=14.60, exerciseMinutes=228}, {date=2025.08.12, goal=0, distance=0.00, step=758, ExerciseTime=1, calories=24.64, exerciseMinutes=364}, {date=2025.08.11, goal=0, distance=0.00, step=4745, ExerciseTime=0, calories=159.79, exerciseMinutes=2343}]}
+
+
+ {dataEnd=true, dataType=24, dicData=[{date=2025.08.10, goal=0, distance=0.00, step=0, ExerciseTime=0, calories=0.00, exerciseMinutes=0}, {date=2025.08.09, goal=0, distance=2.85, step=3852, ExerciseTime=6, calories=126.73, exerciseMinutes=1938}, {date=2025.08.08, goal=0, distance=0.00, step=1666, ExerciseTime=0, calories=56.33, exerciseMinutes=788}, {date=2025.08.07, goal=0, distance=0.00, step=2819, ExerciseTime=1, calories=92.83, exerciseMinutes=1270}, {date=2046.01.05, goal=0, distance=0.00, step=168, ExerciseTime=0, calories=4.54, exerciseMinutes=76}, {date=2046.01.04, goal=0, distance=0.69, step=1007, ExerciseTime=2, calories=31.66, exerciseMinutes=564}, {date=2046.01.03, goal=0, distance=0.07, step=107, ExerciseTime=0, calories=3.09, exerciseMinutes=54}]}
+170: BleSDK.GetTotalActivityDataWithMode(mode,dateOfLastData)
+171: exerciseMinutes
+
+172: 运动时间，单位为秒
+
+173: Exercise time, in seconds
+174: {dataEnd=false, dataType=25, dicData=[{date=2025.08.07 16:02:55, detailMinterStep=332, distance=0, calories=10.81, arraySteps=40 16 43 93 47 32 0 0 61 0}, {date=2025.08.07 15:44:52, detailMinterStep=236, distance=0, calories=7.58, arraySteps=25 28 50 0 0 37 32 57 7 0}, {date=2025.08.07 15:05:47, detailMinterStep=27, distance=0, calories=0.98, arraySteps=27 0 0 0 0 0 0 0 0 0}, {date=2025.08.07 14:45:50, detailMinterStep=22, distance=0, calories=0.72, arraySteps=22 0 0 0 0 0 0 0 0 0}, {date=2046.01.05 02:10:20, detailMinterStep=93, distance=0, calories=2.7, arraySteps=6 0 0 0 0 0 26 42 19 0}, {date=2046.01.05 02:00:15, detailMinterStep=75, distance=0, calories=1.83, arraySteps=11 0 0 0 0 0 0 0 0 64}, {date=2046.01.04 20:04:03, detailMinterStep=108, distance=0.08, calories=3.71, arraySteps=86 22 0 0 0 0 0 0 0 0}, {date=2046.01.04 09:27:34, detailMinterStep=167, distance=0.12, calories=5.38, arraySteps=11 0 43 93 20 0 0 0 0 0}, {date=2046.01.04 09:12:40, detailMinterStep=10, distance=0, calories=0.37, arraySteps=10 0 0 0 0 0 0 0 0 0}]}
+
+ {dataEnd=true, dataType=25, dicData=[{date=2046.01.04 09:02:35, detailMinterStep=53, distance=0.04, calories=1.78, arraySteps=53 0 0 0 0 0 0 0 0 0}, {date=2046.01.04 08:45:18, detailMinterStep=325, distance=0.25, calories=9.86, arraySteps=119 69 0 51 71 15 0 0 0 0}, {date=2046.01.04 06:09:25, detailMinterStep=223, distance=0.16, calories=6.82, arraySteps=110 14 0 98 1 0 0 0 0 0}, {date=2046.01.04 03:17:42, detailMinterStep=10, distance=0, calories=0.37, arraySteps=10 0 0 0 0 0 0 0 0 0}, {date=2046.01.04 02:23:58, detailMinterStep=111, distance=0, calories=3.32, arraySteps=29 64 18 0 0 0 0 0 0 0}, {date=2046.01.03 23:19:21, detailMinterStep=23, distance=0, calories=0.81, arraySteps=23 0 0 0 0 0 0 0 0 0}, {date=2046.01.03 08:08:07, detailMinterStep=39, distance=0.03, calories=1.13, arraySteps=39 0 0 0 0 0 0 0 0 0}, {date=2046.01.03 07:16:57, detailMinterStep=45, distance=0.02, calories=1.13, arraySteps=45 0 0 0 0 0 0 0 0 0}]}
+175: detailMinterStep:
+176: 每段的总步数
+177: 
+arraySteps=110 14 0 98 1 0 0 0 0 0
+
+178: 这里每一个值代表1分钟的步数
+
+
+
+
+
+179: Detail InterStep: Total number of steps per segment
+arraySteps=110 14 0 98 1 0 0 0 0 0
+Each value here represents the number of steps taken in one minute
+180: BleSDK.GetDetailActivityDataWithMode(byte mode, String dateOfLastData)
+181: mode: 
+0 
+182: 开始读取
+183: 
+2 
+184: 未读取完成继续读取数据
+185: 
+0x99 
+186: 删除此数据
+187: 
+
+mode: 
+0 Start reading
+2. Read not completed. Continue reading data
+0x99 Delete this data
+
+dateOfLastData
+
+188: 注意这里是填写设备最后返回的时间，不能随便填写数据。数据格式yyyy.MM.dd HH:mm:ss
+189:   
+
+dateOfLastData
+Please note that this is the last time the device returned, and data cannot be entered randomly. Data format
+ yyyy.MM.dd HH:mm:ss
+
+dateOfLastData 
+190: 设备返回所有数据后最后的时间戳，第一次没有的情况为null，或者“”，同步数据后保存数据库
+         *dateOfLastData The last timestamp after the device returns all data, null if there is no data for the first time, or "", save the database after synchronizing the data
+        
+191: 
+
+
+dataEnd=false
+192: 时数据没有同步完成
+193: dataEnd=true
+194: 才是同步完成
+195: 
+
+When dataEnd=false, data synchronization has not been completed. Only when dataEnd=true is synchronization completed
+196: mode: 
+0 
+197: 开始读取
+
+198: 2 
+199: 未读取完成继续读取数据
+0
+200: x99 
+201: 删除此数据
+
+
+202: mode: 
+0 Start reading
+2. Read not completed. Continue reading data
+0x99 Delete this data
+
+dateOfLastData
+
+203: 注意这里是填写设备最后返回的时间，不能随便填写数据。数据格式yyyy.MM.dd  
+
+dateOfLastData
+Please note that this is the last time the device returned, and data cannot be entered randomly. Data format yyyy.MM.dd
+
+dateOfLastData 设备返回所有数据后最后的时间戳，第一次没有的情况为null，或者“”，同步数据后保存数据库
+        dateOfLastData The last timestamp after the device returns all data, null if there is no data for the first time, or "", save the database after synchronizing the data
+
+
+dataEnd=false时数据没有同步完成dataEnd=true才是同步完成
+204: 
+
+When dataEnd=false, data synchronization has not been completed. Only when dataEnd=true is synchronization completed
+
+205: {dataEnd=false, dataType=26, dicData=[{
+date=2021-10-21 14:00:02, 
+sleepUnitLength=1, 
+arraySleepQuality=39 2 2 2 2 2 2 2 2 2 2 2 3 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 }]}
+
+{DataType=26, Data=[], DataEnd=true}
+206:  
+sleepUnitLength=1, //1 for 1 minute sleep, 5 for 5 minutes
+
+sleeparraySleepQuality=
+39 2 2 2 2 2 2 2 2 2 2 2 3 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 }]}
+
+
+207: 每一个数字表示
+208: 1
+209: 分钟的睡眠质量，最多表示
+210: 2
+211: 小时的睡眠数据（
+212: 01=
+213: 深睡，
+214: 02=
+215: 浅睡，
+216: 03=REM
+217: ，有效数据内的其余数字表示清醒，例
+218: 00
+219: 、
+220: 05
+221: 。如果数据中断，
+222: app
+223: 端进行数据补偿）
+
+224: Each number represents 1 minute of sleep quality, with a maximum of 2 hours of sleep data (01=deep sleep, 02=light sleep, 03=REM). The remaining numbers in the valid data indicate wakefulness, such as 00 and 05. If the data is interrupted, the app will compensate for it
+225: BleSDK.GetDetailSleepDataWithMode(mode,"")
+226: mode: 
+0 
+227: 开始读取
+228: 
+2 
+229: 未读取完成继续读取数据
+230: 
+0x99 
+231: 删除此数据
+232: 
+
+mode: 
+0 Start reading
+2. Read not completed. Continue reading data
+0x99 Delete this data
+
+dateOfLastData
+
+233: 注意这里是填写设备最后返回的时间，不能随便填写数据。数据格式
+234: yyyy.MM.dd HH:mm:ss  
+
+dateOfLastData
+Please note that this is the last time the device returned, and data cannot be entered randomly. Data format
+ yyyy.MM.dd HH:mm:ss
+
+dateOfLastData 
+235: 设备返回所有数据后最后的时间戳，第一次没有的情况为
+236: null
+237: ，或者“”，同步数据后保存数据库
+238: 
+         *dateOfLastData The last timestamp after the device returns all data, null if there is no data for the first time, or "", save the database after synchronizing the data
+        
+
+
+dataEnd=false
+239: 时数据没有同步完成
+240: dataEnd=true
+241: 才是同步完成
+242: 
+
+When dataEnd=false, data synchronization has not been completed. Only when dataEnd=true is synchronization completed
+243: BleSDK.GetDynamicHRWithMode(mode,"")
+244: {dataEnd=true, dataType=27, dicData=[{date=2025.08.12 09:22:41, arrayDynamicHR=87 84 82 74 77 79 77 75 74 74 76 78 78 75 73}, {date=2025.08.12 09:21:47, arrayDynamicHR=76 73 72 72 74 74 0 0 0 0 0 0 0 0 0}, {date=2025.08.12 09:20:32, arrayDynamicHR=78 78 79 78 80 82 81 81 84 86 90 90 88 87 84}, {date=2025.08.12 09:19:17, arrayDynamicHR=70 73 76 80 77 71 72 76 77 77 74 74 76 77 76}]}
+245: arrayDynamicHR
+
+246: 每
+247: 5s
+248: 保存一个心率值，总共
+249: 15
+250: 个心率值，表示
+251: 75
+252: 秒的心率数据（
+253: 16
+254: 进制）
+
+
+255: Save a heart rate value every 5 seconds, for a total of 15 heart rate values, representing 75 seconds of heart rate data (hexadecimal)
+256: {dataEnd=false, dataType=28, dicData=[{date=2025.08.15 16:35:30, onceHeartValue=79}, {date=2025.08.15 16:30:30, onceHeartValue=96}, {date=2025.08.15 16:25:30, onceHeartValue=77}, {date=2025.08.15 16:20:30, onceHeartValue=78}, {date=2025.08.15 16:15:30, onceHeartValue=87}, {date=2025.08.15 16:10:30, onceHeartValue=74}, {date=2025.08.15 16:05:30, onceHeartValue=66}, {date=2025.08.15 16:00:30, onceHeartValue=67}, {date=2025.08.15 15:55:30, onceHeartValue=69}, {date=2025.08.15 15:50:30, onceHeartValue=76}, {date=2025.08.15 15:45:30, onceHeartValue=98}, {date=2025.08.15 15:40:30, onceHeartValue=74}, {date=2025.08.15 15:35:30, onceHeartValue=72}, {date=2025.08.15 15:30:30, onceHeartValue=79}, {date=2025.08.15 15:25:30, onceHeartValue=84}, {date=2025.08.15 15:20:30, onceHeartValue=76}, {date=2025.08.15 15:15:30, onceHeartValue=64}, {date=2025.08.15 15:10:30, onceHeartValue=76}, {date=2025.08.15 15:05:30, onceHeartValue=78}, {date=2025.08.15 15:00:30, onceHeartValue=77}, {date=2025.08.15 14:55:30, onceHeartValue=70}, {date=2025.08.15 14:50:30, onceHeartValue=73}, {date=2025.08.15 14:45:30, onceHeartValue=72}, {date=2025.08.15 14:40:30, onceHeartValue=71}]}
+
+
+ {dataEnd=true, dataType=28, dicData=[{date=2025.08.14 17:40:30, onceHeartValue=74}, {date=2025.08.14 14:15:30, onceHeartValue=75}, {date=2025.08.14 14:14:30, onceHeartValue=73}]}
+257: BleSDK.GetStaticHRWithMode(mode,"")
+258: {dataEnd=false, dataType=42, dicData=[{date=2025.08.19 17:04:00, highBP=115, stress=93, lowBP=65, heartRate=0, hrv=97, vascularAging=93}, {date=2025.08.19 16:34:00, highBP=115, stress=71, lowBP=65, heartRate=0, hrv=52, vascularAging=71}, {date=2025.08.19 16:03:29, highBP=115, stress=44, lowBP=65, heartRate=71, hrv=48, vascularAging=44}, {date=2025.08.19 15:33:12, highBP=125, stress=47, lowBP=68, heartRate=69, hrv=35, vascularAging=47}, {date=2025.08.19 15:03:01, highBP=119, stress=45, lowBP=69, heartRate=72, hrv=45, vascularAging=45}, {date=2025.08.19 14:33:57, highBP=118, stress=46, lowBP=68, heartRate=63, hrv=42, vascularAging=46}, {date=2025.08.19 10:36:10, highBP=124, stress=55, lowBP=70, heartRate=0, hrv=70, vascularAging=55}, {date=2025.08.16 15:03:28, highBP=124, stress=47, lowBP=70, heartRate=59, hrv=52, vascularAging=47}, {date=2025.08.16 14:32:59, highBP=115, stress=43, lowBP=65, heartRate=70, hrv=35, vascularAging=43}, {date=2025.08.16 14:03:08, highBP=113, stress=44, lowBP=63, heartRate=71, hrv=47, vascularAging=44}, {date=2025.08.16 13:34:00, highBP=127, stress=68, lowBP=77, heartRate=0, hrv=97, vascularAging=68}, {date=2025.08.16 13:03:14, highBP=127, stress=44, lowBP=77, heartRate=71, hrv=37, vascularAging=44}, {date=2025.08.16 12:34:00, highBP=121, stress=81, lowBP=71, heartRate=0, hrv=72, vascularAging=81}, {date=2025.08.16 12:03:18, highBP=121, stress=11, lowBP=71, heartRate=61, hrv=56, vascularAging=11}, {date=2025.08.15 22:32:56, highBP=129, stress=45, lowBP=70, heartRate=67, hrv=30, vascularAging=45}, {date=2025.08.15 22:03:15, highBP=116, stress=46, lowBP=66, heartRate=63, hrv=34, vascularAging=46}]}
+259: BleSDK.GetHRVDataWithMode(mode,"")
+260: highBP=119, //
+261: 血压高压 
+262: High blood pressure
+
+stress=45,  
+263: 压力值
+
+264: 
+lowBP=69, /
+265: 血压低压
+266: Low blood pressure
+
+heartRate=72, 
+
+hrv=45, //
+267: 心率变异性heart rate variability
+
+268: 
+vascularAging=45 //
+269: 血管老化度Vascular aging 
+270: BleSDK.GetTemperature_historyData(byte mode, String dateOfLastData)
+271: {dataEnd=false, dataType=59, dicData=[{date=2025.08.14 16:59:59, temperature=25.9}, {date=2025.08.14 16:49:59, temperature=25.8}, {date=2025.08.14 16:39:59, temperature=25.8}, {date=2025.08.14 16:29:59, temperature=26}, {date=2025.08.14 16:19:59, temperature=26}, {date=2025.08.14 16:09:59, temperature=26}, {date=2025.08.14 15:59:59, temperature=25.9}, {date=2025.08.14 15:49:59, temperature=26.1}, {date=2025.08.14 15:39:59, temperature=26.2}, {date=2025.08.14 15:29:59, temperature=25.9}, {date=2025.08.14 15:19:59, temperature=26}, {date=2025.08.14 15:09:59, temperature=26.1}, {date=2025.08.14 14:59:59, temperature=26.3}, {date=2025.08.14 14:49:59, temperature=26.1}, {date=2025.08.14 14:39:59, temperature=26.2}, {date=2025.08.14 14:29:59, temperature=26.2}, {date=2025.08.14 14:19:59, temperature=26.4}, {date=2025.08.14 14:09:59, temperature=26.3}, {date=2025.08.14 13:59:59, temperature=26.2}, {date=2025.08.14 13:49:59, temperature=26.1}, {date=2025.08.14 13:39:59, temperature=25.9}, {date=2025.08.14 13:29:59, temperature=25.9}]}
+272: temperature=25.9
+
+273: 温度单位为摄氏度
+
+274: The temperature unit is Celsius
+
+275: BleSDK.Oxygen_data(ModeStart,"")
+276:  {dataEnd=true, dataType=68, dicData=[{date=2025.08.15 17:01:40, Blood_oxygen=91}, {date=2025.08.15 16:31:40, Blood_oxygen=90}, {date=2025.08.15 16:01:40, Blood_oxygen=93}, {date=2025.08.15 15:31:40, Blood_oxygen=88}, {date=2025.08.15 15:01:40, Blood_oxygen=84}, {date=2025.08.14 20:06:39, Blood_oxygen=95}]}
+277: AutoTestMode {
+    AutoHeartRate, AutoSpo2,
+}
+
+
+second:
+278: 必须大于
+279: 30
+280: 秒  
+281: Must be greater than 30 seconds
+282: SetDeviceMeasurementWithType(AutoTestMode dataType, long second, boolean open)
+
+AutoTestMode
+283: ：
+284: AutoHeartRate/AutoSpo2
+second  : Must be greater than 30 seconds
+open:true/false    Open or close
+
+
+
+285: 请结合
+286: 11
+287: 项功能一起使用 
+288: Please use the 11 functions together
+289: 设备心跳数据包（运动模式下的心率数据）
+290: 
+Ring heart rate data packet (heart rate data in exercise mode)
+291: BleSDK.EnterActivityMode(int time, int activityMode, int WorkMode)
+
+time:
+292: 运动时长设置单位分钟
+293: Exercise duration setting in minutes
+
+activitymode:
+Run 
+Cycling 
+Badminton 
+Football 
+Tennis 
+Yoga 
+Meditation 
+Dance 
+Basketball 
+Walk 
+Workout 
+Cricket 
+Hiking 
+Aerobics 
+Ping-Pong
+
+WorkMode
+294: ：
+295: 
+ExerciseMode.Status_START
+ExerciseMode.Status_PAUSE
+ExerciseMode.Status_CONTUINE
+ ExerciseMode.Status_FINISH
+
+
+
+296: 如果是呼吸（冥想）需要用另外一个方法
+297: 
+If it's breathing (meditation), another method is needed
+BleSDK.setExerciseModeByBreath(int status, int time, int WorkMode
+)
+
+
+
+   status   
+298: 级别
+299:  level 0,1,2
+    time     
+300: 分钟
+301:   minute
+   WorkMode START=1;PAUSE=2;CONTUINE=3;FINISH=4;
+302: 运动模式控制开关
+303: 
+Exercise mode control switch
+304: BleSDK.sendHeartPackage(float distance, int space, int rssi)
+305: distance
+306: ：运动时
+307: 2
+308: 个经纬度距离
+309:  
+310: 单位是
+311: KM 
+space
+312: ：运动时的配速，单位秒
+313:  
+rssi
+314: ：
+315: Gps
+316: 的信号强度
+317:  1
+318: ，
+319: 2
+320: ，
+321: 3
+
+Distance: When in motion, the distance between two latitude and longitude units is in kilometers
+Space: Speed during motion, in seconds
+RSSI: Signal strength of Gps 1, 2, 3
+322: {dataEnd=true, dataType=82, dicData={distance=0.32, heartRate=0, step=462, ExerciseTime=0,}}
+323: 获得各运动模式里的运动数据（这里指运动模式里的数据，如跑步，骑自行车等）
+324: 
+Obtain exercise data from various exercise modes (referring to data within the exercise modes, such as running, cycling, etc.)
+325: ExerciseTime=304
+
+326: 单位秒
+
+327: Unit second
+328: BleSDK.GetActivityModeDataWithMode(mode)
+
+
+
+
+
+
+329: 获取当前运动模式以及运动状态
+
+330: Obtain the current motion mode and motion status
+BleSDK.FindActivityMode()
+331: {dataEnd=true, dataType=82, dicData={heartRate=92, step=163, ExerciseTime=304, calories=5.331112}}
+
+
+
+{dataEnd=true, dataType=120, dicData={Status=0, Type=0}}
+
+
+
+Status:
+0 Run 
+1 Cycling 
+2 Badminton 
+3 Football 
+4 Tennis 
+5 Yoga 
+6 Meditation 
+7 Dance 
+8 Basketball 
+9 Walk 
+10 Workout 
+11 Cricket 
+12 Hiking 
+13 Aerobics 
+14 Ping-Pong
+
+Type:
+1:
+332: 开始
+333:  
+334: ，
+335:   2
+336: ：暂停，
+337:  3
+338: ：继续，
+339:  4
+340: 结束。
+341: 5
+342: ：
+343:  
+344: 查询状态
+
+
+345: 1: Start, 2: pause, 3: continue, 4: end. 5: Query status
+346: /*!
+* @method ppgWithMode::
+* @param ppgMode 1 
+347: 表示开启
+348: ppg
+349: 测量
+350:  2
+351: 表示给设备发送测量结果
+352:  3
+353: 表示停止
+354: ppg
+355: 测量
+356:  4
+357: 表示给设备发送
+358: ppg
+359: 测量的进度
+360:  5
+361: 表示退出
+362: ppg
+363: 测量
+364: 
+* @param ppgStatus 
+365: 当
+366:  ppgMode=2
+367: 或者
+368:  ppgMode=4
+369: 的时候才有效。当
+370: ppgMode=2
+371: 时，
+372: 0
+373: 表示测量失败
+374:  1 
+375: 表示测量结果偏低
+376:  2
+377: 表示测量结果正常
+378:  3
+379: 表示测量结果偏高
+380:  
+381: 。
+382:  
+383: 当
+384: ppgMode=4
+385: 时，
+386: ppgStatus
+387: 表示测量的进度值，范围是
+388: 0-100
+* @discussion Turn on ECG measurement 
+389: 开启
+390: ECG
+391: 测量
+392: 
+*
+*/
+ppgWithMode:(int)ppgMode ppgStatus:(int)ppgStatus;
+
+
+393: 使用方法
+394:  Usage
+395: ：
+396: 
+1.	
+397: 开始血糖测量数据收集
+398: Start collecting blood glucose measurement data
+399: ：
+400: 
+BleManager.getInstance().writeValue(BleSDK. ppgWithMode
+(1
+401: ，
+402: 0));
+
+
+{dataEnd=true, dataType=118, dicData={Type=0}}
+
+Type=0//
+403: 设备状态正常，这里可以开启一个五分钟的计时器。
+404:  The device status is normal, and a five minute timer can be activated here.
+Type=2//
+405: 电池电量过低，少于
+406: 10% The battery level is too low, less than 10%
+Type=3//
+407: 在跑步模式，不能开始测试
+408:  Unable to start testing in running mode
+
+2.	
+409: 向设备发送计时的进度
+410: Send the progress of timing to the device
+BleManager.getInstance().writeValue(BleSDK. ppgWithMode (4
+411: ，
+412: int Progress
+);
+Progress 0-100
+
+3.	
+413: 血糖数据采集返回的数据
+414: Blood glucose data collection and return data
+415: ：
+416: 
+{dataEnd=false, dataType=119, dicData={PPG=[926517, 929883, 930359, 931379, 933963, 934915, 928949, 920568, 915178, 913666, 914158, 914397, 912629, 909840, 907002, 905896, 905964, 905063, 904367, 903346, 901154, 899096, 897345, 895220, 894472, 893946, 893861, 892501, 892058, 891735, 892041, 892467, 892246, 892347, 892619, 892092, 892313, 892228, 892211, 891838, 892348, 892416, 892840, 892738, 892670, 893316, 893503, 893605, 893928, 894234]}}
+
+
+3.
+417: 停止
+418: ppg/riss
+419: 数据采集
+420:  Stop ppg/riss data collection
+
+BleManager.getInstance().writeValue(BleSDK. ppgWithMode (3
+421: ，
+422: 0));
+
+
+4.	
+423: 发送服务器返回结果给设备
+424: Send server return result to device
+/**
+ * 
+425: 血糖测量结果
+426: 
+ * Send blood glucose results to the device
+ * status 1
+427: 低
+428:  2
+429: 中
+430:  3
+431: 高
+432:   0
+433: 测试失败
+434: 
+ * Status 1 low, 2 moderate, 3 high , 0 test failed
+ */
+ ppgWithMode (2
+435: ，
+436: int status) 
+
+5.	
+437: 关闭血糖测试功能
+438: Turn off blood glucose testing function
+
+ppgWithMode (5
+439: ，
+440: 0)
+
+441: 获得睡眠详细数据
+442: +
+443: 活动量
+
+444: Obtain detailed sleep data and activity levels
+445: {dataEnd=false, dataType=121, dicData=[{date=2025.08.20 12:57:57, ActivityData=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], sleepLength=35, Sleep_level=[5, 5, 5, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 3, 3, 3, 2, 3, 3, 3, 2]}]}
+446: BleSDK.getObtainDetailedSleepData(byte mode, String dateOfLastData)
+447: mode: 
+0 
+448: 开始读取
+449: 
+2 
+450: 未读取完成继续读取数据
+451: 
+0x99 
+452: 删除此数据
+453: 
+
+mode: 
+0 Start reading
+2. Read not completed. Continue reading data
+0x99 Delete this data
+
+dateOfLastData
+
+454: 注意这里是填写设备最后返回的时间，不能随便填写数据。数据格式
+455: yyyy.MM.dd HH:mm:ss  
+
+dateOfLastData
+Please note that this is the last time the device returned, and data cannot be entered randomly. Data format
+ yyyy.MM.dd HH:mm:ss
+
+dateOfLastData 
+456: 设备返回所有数据后最后的时间戳，第一次没有的情况为
+457: null
+458: ，或者“”，同步数据后保存数据库
+459: 
+         *dateOfLastData The last timestamp after the device returns all data, null if there is no data for the first time, or "", save the database after synchronizing the data
+        
+
+
+dataEnd=false
+460: 时数据没有同步完成
+461: dataEnd=true
+462: 才是同步完成
+463: 
+
+When dataEnd=false, data synchronization has not been completed. Only when dataEnd=true is synchronization completed
+464:  sleepLength
+465: ：睡眠数据长度，单位分钟
+466:  
+ActivityData
+467: ：代表活动量，范围
+468: 0-255
+469: ，数据越大代表活动量越大
+470:  
+Sleep_level:
+471: 代表睡眠等级，每个值取值等级为（
+472: 01=
+473: 深睡，
+474: 02=
+475: 浅睡，
+476: 03=REM
+477: ，有效数据内的其余数字表示清醒）
+
+
+
+478: SleepLength: The length of sleep data, measured in minutes
+ActiveData: represents the amount of activity, ranging from 0-255, with larger data indicating greater activity
+Sleep_1evel: represents the sleep level, with each value having a level of (01=deep sleep, 02=light sleep, 03=REM, and the remaining numbers in the valid data indicate wakefulness)
+479: 血糖测试
+
+480: Blood glucose test
+481: 
+
+482: 设置设备基本参数
+
+483: Set the basic parameters of the device
+484: 获得设备基本参数
+485:  
+Obtain the basic parameters of the device
+486: 实时温度
+Real-time temperature
+487: {dataEnd=true, dataType=123, dicData={TempData=32.4}}
+488: TempData=32.4 
+489: 代表摄氏度温度
+
+490: TempData=32.4 represents Celsius temperature
+491: The main process is as follows: 1. The device is scheduled to collect PPG data returned by the device for five minutes ->After uploading the data to the server, the server provides results based on the data.
+
+
+492: 步骤
+493:  step
+494: ：
+495: 
+
+
+1.	
+496: 连接设备
+497: 
+2.	
+498: 开始血糖测试。
+499: 
+3.	
+500: 开始计时
+501: 5
+502: 分钟
+503: 
+4.	
+504: 计时进度下发给设备
+505: 
+5.	
+506: 关闭
+507: ppg/riss
+508: 信号采集（设备处于等待状态，结果未知）
+509: 
+6.	
+510: 把收集到五分钟的
+511: ppg/riss
+512: 数据等信息上传到服务器。
+513: 
+7.	
+514: 服务器通过
+515: ppi
+516: 数据给出结果后，向设备发送结果的指令。
+517: 
+8.	
+518: 向设备发送关闭血糖测试指令。
+519: 
+
+1. Connecting devices
+2. Start blood sugar testing.
+3. Start timing for 5 minutes
+4. Send the timing progress to the equipment
+5. Turn off ppg/riss signal acquisition (device in waiting state, unknown result)
+6. Upload the collected PPG/RISS data and other information for five minutes to the server.
+7. After the server provides the result through PPI data, it sends the instruction of the result to the device.
+8. Send the command to turn off the blood glucose test to the device.
+520: BleSDK.SetBasic_parameters_of_equipment(Is_the_sports_mode_flashing,Is_the_light_flashing_when_the_Heart_Rate_is_too_high_in_sports_mode)
+521:  * Is_the_sports_mode_flashing  
+522: 运动模式是否闪灯
+523: 
+* Is_the_light_flashing_when_the_Heart_Rate_is_too_high_in_sports_mode 
+524: 运动模式心率过高是否闪灯
+525:  {dataEnd=true, dataType=124, dicData={}}
+526: BleSDK.GetBasic_parameters_of_equipment()
+527: {dataEnd=true, dataType=125, dicData={Is_the_sports_mode_flashing=1, Is_the_light_flashing_when_the_Heart_Rate_is_too_high_in_sports_mode=1}}
+528:   {dataEnd=true, dataType=125, dicData={Is_the_sports_mode_flashing=1, Is_the_light_flashing_when_the_Heart_Rate_is_too_high_in_sports_mode=1}}
+529: Is_the_sports_mode_flashing=1, 1
+530: 开启
+531:   0
+532: 关闭
+533: Is_the_light_flashing_when_the_Heart_Rate_is_too_high_in_sports_mode=1  1
+534: 开启
+535:   0
+536: 关闭
+
+
+537: Is_the_sports_mode_frasing=1
+538: ，
+539: 1
+540: 开启
+541:   0
+542: 关闭
+543: Is_the_light_flashing when-the_Heart_Rate_Is_too_high_in_sports_mode=1 1
+544: 开启
+545:   0
+546: 关闭
