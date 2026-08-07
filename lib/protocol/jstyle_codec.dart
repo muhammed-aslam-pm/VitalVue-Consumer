@@ -154,6 +154,28 @@ class HistoryTemp extends HistoryRecord {
   HistoryTemp(super.timestamp, this.tempC);
 }
 
+/// One background HRV/BP measurement stored in the band's flash.
+/// Parsed from CMD_Get_HrvTestData (0x56) response — 15 bytes per record.
+/// Fields match SDK's ResolveUtil.getHrvTestData() exactly.
+class HistoryBpHrv extends HistoryRecord {
+  final int hrv;
+  final int vascularAging;
+  final int hr;
+  final int stress;
+  final int systolic;
+  final int diastolic;
+
+  HistoryBpHrv(
+    super.timestamp, {
+    required this.hrv,
+    required this.vascularAging,
+    required this.hr,
+    required this.stress,
+    required this.systolic,
+    required this.diastolic,
+  });
+}
+
 // ── Parsed event types ────────────────────────────────────────────────────────
 
 sealed class BandEvent {}
@@ -162,21 +184,6 @@ class RealtimeEvent extends BandEvent {
   final RealtimeData data;
   RealtimeEvent(this.data);
 }
-
-class BpResultEvent extends BandEvent {
-  final int systolic;
-  final int diastolic;
-  final int hrv;
-  final int stress;
-  BpResultEvent({
-    required this.systolic,
-    required this.diastolic,
-    required this.hrv,
-    required this.stress,
-  });
-}
-
-class BpNoDataEvent extends BandEvent {}
 
 class BatteryEvent extends BandEvent {
   final int percent;
@@ -276,10 +283,11 @@ class JStyleCodec {
 
   /// Configure the band's internal automatic background monitoring.
   /// [kind]: 1=HR, 2=SpO2, 3=Temp, 4=HRV. [intervalMins] interval in minutes.
+  /// [mode]: 0=disable, 1=enable full period, 2=interval measurement (default: 2 when enable=true)
   Uint8List setAutoMeasurement(int kind, int intervalMins,
-      {required bool enable}) {
+      {required bool enable, int mode = 2}) {
     final p = Uint8List(9);
-    p[0] = enable ? 0x01 : 0x00; // open
+    p[0] = enable ? mode : 0x00; // workMode: 2 = interval measurement
     p[1] = 0; // startHour (00:00)
     p[2] = 0; // startMin
     p[3] = 23; // endHour (23:59)
@@ -287,7 +295,7 @@ class JStyleCodec {
     p[5] = 0x7F; // week (all days)
     p[6] = intervalMins & 0xFF; // time LSB
     p[7] = (intervalMins >> 8) & 0xFF; // time MSB
-    p[8] = kind; // type: 1=HR
+    p[8] = kind; // type: 1=HR, 2=SpO2, 3=Temp, 4=HRV
     return frame(cmdSetAuto, p);
   }
 
@@ -295,8 +303,20 @@ class JStyleCodec {
   Uint8List getVersion() => frame(cmdGetVersion);
   Uint8List mcuReset() => frame(cmdMcuReset);
 
-  /// Trigger HRV / Blood Pressure calculation. Matches Python get_bp_hrv_data().
-  Uint8List getBpHrvData() => frame(cmdGetHrvData);
+  /// Fetch BP/HRV history from the band's flash storage.
+  ///
+  /// [mode] follows the same protocol as every other history command:
+  ///   0x00 = start fresh (read from most recent)
+  ///   0x02 = continue reading (when data count == 50 and not yet end)
+  ///   0x99 = delete all HRV history
+  ///
+  /// Matches SDK BleSDK.GetHRVDataWithMode().
+  Uint8List getBpHrvDataWithMode(int mode) {
+    return frame(cmdGetHrvData, Uint8List.fromList([mode & 0xFF]));
+  }
+
+  /// Convenience wrapper: start a fresh BP/HRV history fetch.
+  Uint8List getBpHrvData() => getBpHrvDataWithMode(0x00);
 
   /// Fetch Historical Data (0x00 mode reads all)
   Uint8List getHistorySteps() =>
@@ -322,19 +342,68 @@ class JStyleCodec {
       return RealtimeEvent(_parseRealtime(value));
     }
 
+    // ── BP / HRV history (0x56 CMD_Get_HrvTestData) ─────────────────────────
+    // Packet format (SDK ResolveUtil.getHrvTestData):
+    //   [0]        = 0x56  (cmd echo)
+    //   [1]        = mode echo
+    //   [2]        = reserved
+    //   [3+i*15]   = year  (BCD)
+    //   [4+i*15]   = month (BCD)
+    //   [5+i*15]   = day   (BCD)
+    //   [6+i*15]   = hour  (BCD)
+    //   [7+i*15]   = minute(BCD)
+    //   [8+i*15]   = second(BCD)
+    //   [9+i*15]   = HRV
+    //   [10+i*15]  = VascularAging
+    //   [11+i*15]  = HeartRate
+    //   [12+i*15]  = Stress (fatigue/tired)
+    //   [13+i*15]  = highBP (systolic)
+    //   [14+i*15]  = lowBP  (diastolic)
+    //   [last]     = 0xFF when this is the last packet in the sequence
     if (dt == cmdGetHrvData) {
-      if (value.length < 15) return BpNoDataEvent();
-      final sys = value[13] & 0xFF;
-      final dia = value[14] & 0xFF;
-      final hrv = value[9] & 0xFF;
-      final stress = value[12] & 0xFF;
-      if (sys == 0 && dia == 0 && hrv == 0) return BpNoDataEvent();
-      return BpResultEvent(
-        systolic: sys,
-        diastolic: dia,
-        hrv: hrv,
-        stress: stress,
-      );
+      final records = <HistoryRecord>[];
+      const count = 15;
+      final size = value.length ~/ count;
+
+      if (size == 0) {
+        return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
+      }
+
+      final isEnd = value[value.length - 1] == 0xFF;
+
+      for (int i = 0; i < size; i++) {
+        try {
+          final year = 2000 + _bcdDecode(value[3 + i * count]);
+          final month = _bcdDecode(value[4 + i * count]);
+          final day = _bcdDecode(value[5 + i * count]);
+          final hour = _bcdDecode(value[6 + i * count]);
+          final minute = _bcdDecode(value[7 + i * count]);
+          final second = _bcdDecode(value[8 + i * count]);
+
+          final hrv = value[9 + i * count] & 0xFF;
+          final vascularAging = value[10 + i * count] & 0xFF;
+          final hr = value[11 + i * count] & 0xFF;
+          final stress = value[12 + i * count] & 0xFF;
+          final systolic = value[13 + i * count] & 0xFF;
+          final diastolic = value[14 + i * count] & 0xFF;
+
+          // Skip all-zero records (band memory not yet written)
+          if (systolic == 0 && diastolic == 0 && hrv == 0) continue;
+
+          final ts = DateTime(year, month, day, hour, minute, second);
+          records.add(HistoryBpHrv(
+            ts,
+            hrv: hrv,
+            vascularAging: vascularAging,
+            hr: hr,
+            stress: stress,
+            systolic: systolic,
+            diastolic: diastolic,
+          ));
+        } catch (_) {}
+      }
+
+      return HistoryDataEvent(cmd: dt, records: records, isEnd: isEnd);
     }
 
     if (dt == cmdGetBattery) {
@@ -342,14 +411,50 @@ class JStyleCodec {
       return BatteryEvent(pct);
     }
 
+    // Historical SpO2 (0x66 CMD_Get_OxygenData OR 0xAB CMD_Get_Auto)
+    if (dt == cmdGetOxygenData || dt == 0xAB) {
+      final records = <HistoryRecord>[];
+      const count = 10;
+      final size = value.length ~/ count;
+      if (size == 0) {
+        return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
+      }
+      final isEnd = value.isNotEmpty && value[value.length - 1] == 0xFF;
+      for (int i = 0; i < size; i++) {
+        try {
+          final year = 2000 + _bcdDecode(value[3 + i * count]);
+          final month = _bcdDecode(value[4 + i * count]);
+          final day = _bcdDecode(value[5 + i * count]);
+          final hour = _bcdDecode(value[6 + i * count]);
+          final minute = _bcdDecode(value[7 + i * count]);
+          final second = _bcdDecode(value[8 + i * count]);
+          var spo2 = value[9 + i * count] & 0xFF;
+          if (spo2 == 0 && value.length > 13 + i * count) {
+            final fallback = value[13 + i * count] & 0xFF;
+            if (fallback >= 50 && fallback <= 100) {
+              spo2 = fallback;
+            }
+          }
+          if (spo2 > 0) {
+            records.add(HistorySpo2(
+              DateTime(year, month, day, hour, minute, second),
+              spo2,
+            ));
+          }
+        } catch (_) {}
+      }
+      return HistoryDataEvent(cmd: dt, records: records, isEnd: isEnd);
+    }
+
     // Historical HR
     if (dt == cmdGetHeartData) {
-      final records = <HistoryRecord>[];
-      final count = 24;
+      const records = <HistoryRecord>[];
+      const count = 24;
       final size = value.length ~/ count;
       bool isEnd = false;
-      if (size == 0)
+      if (size == 0) {
         return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
+      }
 
       for (int i = 0; i < size; i++) {
         int offset = i * count;
@@ -377,12 +482,13 @@ class JStyleCodec {
 
     // Historical Steps
     if (dt == cmdGetDetailData) {
-      final records = <HistoryRecord>[];
-      final count = 25;
+      const records = <HistoryRecord>[];
+      const count = 25;
       final size = value.length ~/ count;
       bool isEnd = false;
-      if (size == 0)
+      if (size == 0) {
         return HistoryDataEvent(cmd: dt, records: records, isEnd: true);
+      }
 
       for (int i = 0; i < size; i++) {
         int offset = i * count;

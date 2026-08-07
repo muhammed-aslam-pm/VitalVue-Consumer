@@ -147,6 +147,11 @@ CREATE TABLE vitals (
     );
   }
 
+  Future<void> clearAllData() async {
+    final db = await instance.database;
+    await db.delete('vitals');
+  }
+
   Future<void> close() async {
     final db = await instance.database;
     db.close();

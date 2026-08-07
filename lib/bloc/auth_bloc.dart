@@ -3,9 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../auth/auth_repository.dart';
 import '../auth/auth_token_store.dart';
 import '../background/background_preferences.dart';
+import '../db/vitals_database.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+
 /// Manages the authentication lifecycle.
 ///
 /// Cooperates with [AuthInterceptor]: when the interceptor detects that
@@ -47,6 +49,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       } catch (e) {
         // If profile fetch fails on startup (e.g., token expired and refresh failed),
         // we force logout.
+        await BackgroundPreferences.clearAll();
+        await VitalsDatabase.instance.clearAllData();
         await _repo.logout();
         emit(const AuthUnauthenticated());
       }
@@ -99,6 +103,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     FlutterBackgroundService().invoke('stopService');
     await BackgroundPreferences.clearAll();
+    await VitalsDatabase.instance.clearAllData();
     await _repo.logout();
     emit(const AuthUnauthenticated());
   }
