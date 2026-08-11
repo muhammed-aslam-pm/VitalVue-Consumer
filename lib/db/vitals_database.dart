@@ -136,6 +136,38 @@ CREATE TABLE vitals (
     );
   }
 
+  Future<int> getLastValidSpo2() async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'vitals',
+      columns: ['spo2'],
+      where: 'spo2 > ?',
+      whereArgs: [0],
+      orderBy: 'timestamp DESC',
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return maps.first['spo2'] as int? ?? 0;
+    }
+    return 0;
+  }
+
+  Future<Map<String, dynamic>?> getLastValidBp() async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'vitals',
+      columns: ['bpSys', 'bpDia', 'hrv', 'stress'],
+      where: 'bpSys > ?',
+      whereArgs: [0],
+      orderBy: 'timestamp DESC',
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return maps.first;
+    }
+    return null;
+  }
+
   Future<void> deleteOldVitals() async {
     final db = await instance.database;
     final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24)).millisecondsSinceEpoch;

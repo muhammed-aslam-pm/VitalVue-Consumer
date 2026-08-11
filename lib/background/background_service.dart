@@ -502,6 +502,28 @@ void onStart(ServiceInstance service) async {
 
     final device = BluetoothDevice.fromId(remoteIdStr);
 
+    // Cache variables for last reliable vitals in this session
+    int lastValidSpo2 = 0;
+    int lastValidBpSys = 0;
+    int lastValidBpDia = 0;
+    int lastValidHrv = 0;
+    String lastValidStress = '0';
+
+    try {
+      final db = VitalsDatabase.instance;
+      lastValidSpo2 = await db.getLastValidSpo2();
+      final lastBp = await db.getLastValidBp();
+      if (lastBp != null) {
+        lastValidBpSys = lastBp['bpSys'] as int? ?? 0;
+        lastValidBpDia = lastBp['bpDia'] as int? ?? 0;
+        lastValidHrv = lastBp['hrv'] as int? ?? 0;
+        lastValidStress = (lastBp['stress'] ?? '0').toString();
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('[Background] Failed to load last valid vitals from DB: $e');
+    }
+
     session = BandSessionService(
       patientId: profile.id,
       deviceId: deviceId,
@@ -523,6 +545,18 @@ void onStart(ServiceInstance service) async {
           authInterceptor: interceptor,
         );
         final db = VitalsDatabase.instance;
+
+        // Update the cached values if we received new valid vitals in this state snapshot
+        if (state.spo2 > 0) {
+          lastValidSpo2 = state.spo2;
+        }
+        if (state.systolic != null && state.systolic! > 0) {
+          lastValidBpSys = state.systolic!;
+          lastValidBpDia = state.diastolic ?? 0;
+          lastValidHrv = state.hrv ?? 0;
+          lastValidStress = (state.stress ?? 0).toString();
+        }
+
         final hasNewBp = state.isNewBp;
         final hasNewSpo2 = state.isNewSpo2;
 
@@ -559,12 +593,12 @@ void onStart(ServiceInstance service) async {
           patientId: profile.id,
           deviceId: deviceId,
           hr: state.hr,
-          spo2: hasNewSpo2 ? state.spo2 : 0,
+          spo2: lastValidSpo2,
           tempC: state.tempC,
-          bpSys: hasNewBp ? (state.systolic ?? 0) : 0,
-          bpDia: hasNewBp ? (state.diastolic ?? 0) : 0,
-          hrv: hasNewBp ? (state.hrv ?? 0) : 0,
-          stress: hasNewBp ? (state.stress ?? 0).toString() : '0',
+          bpSys: lastValidBpSys,
+          bpDia: lastValidBpDia,
+          hrv: lastValidHrv,
+          stress: lastValidStress,
           steps: state.steps,
           calories: state.calories,
           distanceKm: state.distanceKm,
