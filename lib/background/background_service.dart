@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:battery_plus/battery_plus.dart';
 
 import '../cloud/band_vitals_api.dart';
 import '../auth/auth_interceptor.dart';
@@ -521,10 +522,17 @@ void onStart(ServiceInstance service) async {
           baseUrl: 'https://vitalvue-api.genesysailabs.com',
           authInterceptor: interceptor,
         );
-        
         final db = VitalsDatabase.instance;
         final hasNewBp = state.isNewBp;
         final hasNewSpo2 = state.isNewSpo2;
+
+        int phoneBattery = -1;
+        try {
+          phoneBattery = await Battery().batteryLevel;
+        } catch (e) {
+          // ignore: avoid_print
+          print('[Background] Failed to get phone battery level: $e');
+        }
         
         final vitalData = {
           'timestamp': DateTime.now().millisecondsSinceEpoch,
@@ -561,6 +569,7 @@ void onStart(ServiceInstance service) async {
           calories: state.calories,
           distanceKm: state.distanceKm,
           battery: state.battery,
+          phoneBattery: phoneBattery,
           isRemoved: state.isRemoved,
           isConnected: state.connectionStatus == BleConnectionStatus.connected,
         );

@@ -35,7 +35,6 @@ class BandVitalsApi {
 
   /// Full ingest URL — matches Python: base_url.rstrip("/") + "/api/v1/vitals/ingest"
   String get _endpoint => '${_baseUrl}api/v1/vitals/ingest';
-
   Future<bool> ingest({
     required int patientId,
     required String deviceId,
@@ -51,6 +50,7 @@ class BandVitalsApi {
     double calories = 0.0,
     double distanceKm = 0.0,
     int battery = -1,
+    int phoneBattery = -1,
     bool isConnected = true,
     bool isRemoved = false,
   }) async {
@@ -70,6 +70,7 @@ class BandVitalsApi {
       'distance_km': distanceKm,
       'sleep_pattern': 'unknown',
       'battery_percent': battery,
+      'phone_battery': phoneBattery,
       'is_connected': isConnected,
       'is_removed': isRemoved,
     };
