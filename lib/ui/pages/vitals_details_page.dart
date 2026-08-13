@@ -51,7 +51,7 @@ class _VitalsDetailsPageState extends State<VitalsDetailsPage> {
       if (val == null) return false;
       
       final numericVal = _toDouble(val);
-      if (['hr', 'spo2', 'bpSys', 'hrv'].contains(widget.dbColumnName)) {
+      if (['hr', 'spo2', 'tempC', 'bpSys', 'hrv', 'stress'].contains(widget.dbColumnName)) {
         return numericVal > 0;
       }
       if (widget.dbColumnName == 'battery') {

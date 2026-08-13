@@ -10,6 +10,7 @@ import 'band_timing_logger.dart';
 
 const _spo2KickIntervalS = 300; // SpO2 history sync every 300s
 const _bpKickIntervalS = 300; // BP/HRV history sync every 300s
+const _hrKickIntervalS = 90; // HR history sync every 90s
 const _ingestIntervalS = 60; // cloud ingest every 60s
 const _loopTickS = 2; // main loop tick
 
@@ -140,6 +141,10 @@ class BandSessionService {
   DateTime _lastValidHrTime = DateTime.now();
   DateTime _lastKickTime = DateTime(2000);
   DateTime _lastBpKickTime = DateTime(2000);
+  DateTime _lastHrKickTime = DateTime(2000);
+
+  // Staleness guard for HR history records
+  DateTime? _lastHrRecordTimestamp;
 
   // Watchdog gate: don't trigger off-wrist until we've seen at least one
   // valid HR reading since connect.
@@ -281,10 +286,12 @@ class BandSessionService {
     // 3. Fetch initial history from device flash
     await _write('GetHistorySpo2', _codec.getHistorySpo2());
     await _write('GetHistoryBP', _codec.getBpHrvData());
+    await _write('GetHistoryHR', _codec.getHistoryHeartRate());
 
     final now = DateTime.now();
     _lastKickTime = now;
     _lastBpKickTime = now;
+    _lastHrKickTime = now;
   }
 
   // ── Main loop tick ─────────────────────────────────────────────────────────
@@ -298,32 +305,38 @@ class BandSessionService {
     if (_hasEverReceivedHr) {
       final secondsSinceValidHr = now.difference(_lastValidHrTime).inSeconds;
 
-      // Declare removed if no valid HR received for >= 60s
-      if (secondsSinceValidHr >= 60 && !_state.isRemoved) {
+      // Declare removed if no valid HR received for >= 600s (10 minutes)
+      if (secondsSinceValidHr >= 600 && !_state.isRemoved) {
         debugPrint(
             '[$deviceId] WATCHDOG: No valid HR for >=${secondsSinceValidHr}s. Band REMOVED.');
-        _emit(_state.copyWith(isRemoved: true, hr: 0, spo2: 0));
+        _emit(_state.copyWith(isRemoved: true));
       }
     }
 
-    // ── Periodic history sync (BP & SpO2) ────────────────────────────────────
-    if (!_state.isRemoved) {
-      final spo2CheckInterval = _state.spo2 == 0 ? 30 : _spo2KickIntervalS;
-      final bpCheckInterval = _state.systolic == null ? 30 : _bpKickIntervalS;
+    // ── Periodic history sync (HR, BP & SpO2) ────────────────────────────────
+    final spo2CheckInterval = _state.spo2 == 0 ? 30 : _spo2KickIntervalS;
+    final bpCheckInterval = _state.systolic == null ? 30 : _bpKickIntervalS;
+    // Use shorter interval if we never got an HR reading yet
+    final hrCheckInterval = _state.hr == 0 ? 30 : _hrKickIntervalS;
 
-      final triggerSpo2 =
-          now.difference(_lastKickTime).inSeconds >= spo2CheckInterval;
-      final triggerBp =
-          now.difference(_lastBpKickTime).inSeconds >= bpCheckInterval;
+    final triggerSpo2 =
+        now.difference(_lastKickTime).inSeconds >= spo2CheckInterval;
+    final triggerBp =
+        now.difference(_lastBpKickTime).inSeconds >= bpCheckInterval;
+    final triggerHr =
+        now.difference(_lastHrKickTime).inSeconds >= hrCheckInterval;
 
-      if (triggerSpo2) {
-        _lastKickTime = now;
-        _write('GetHistorySpo2', _codec.getHistorySpo2());
-      }
-      if (triggerBp) {
-        _lastBpKickTime = now;
-        _write('GetHistoryBP', _codec.getBpHrvData());
-      }
+    if (triggerSpo2) {
+      _lastKickTime = now;
+      _write('GetHistorySpo2', _codec.getHistorySpo2());
+    }
+    if (triggerBp) {
+      _lastBpKickTime = now;
+      _write('GetHistoryBP', _codec.getBpHrvData());
+    }
+    if (triggerHr) {
+      _lastHrKickTime = now;
+      _write('GetHistoryHR', _codec.getHistoryHeartRate());
     }
   }
 
@@ -499,40 +512,6 @@ class BandSessionService {
     }
   }
 
-  Future<void> _ingestHistoryRecords(List<HistoryRecord> records) async {
-    if (records.isEmpty) return;
-
-    final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24));
-    final oneHourFromNow = DateTime.now().add(const Duration(hours: 1));
-
-    for (final r in records) {
-      // Ignore records older than 24 hours or in the future (due to band clock errors)
-      if (r.timestamp.isBefore(oneDayAgo) ||
-          r.timestamp.isAfter(oneHourFromNow)) {
-        continue;
-      }
-
-      final map = <String, dynamic>{
-        'timestamp': r.timestamp.millisecondsSinceEpoch,
-        'patient_id': patientId,
-        'device_id': deviceId,
-        'isRemoved': 0,
-        'isIngested': 0,
-      };
-      if (r is HistoryHr) {
-        map['hr'] = r.hr;
-      } else if (r is HistorySteps) {
-        map['steps'] = r.steps;
-        map['calories'] = r.calories;
-        map['distanceKm'] = r.distanceKm;
-      }
-      await VitalsDatabase.instance.upsertVital(map);
-    }
-
-    // Clear any older history automatically
-    await VitalsDatabase.instance.deleteOldVitals();
-  }
-
   // ── History data dispatcher ─────────────────────────────────────────────────
 
   /// Routes incoming HistoryDataEvent to the right handler.
@@ -648,8 +627,11 @@ class BandSessionService {
           latestRecord.timestamp.isAfter(cutoffTime)) {
         debugPrint(
             '[$deviceId] SpO2 history: ${latestRecord.spo2}% (ts: ${latestRecord.timestamp})');
+        _lastValidHrTime = DateTime.now();
         _emit(_state.copyWith(
           spo2: latestRecord.spo2,
+          isRemoved: false,
+          clearError: true,
           isNewSpo2: true,
         ));
       } else if (latestRecord != null) {
@@ -660,15 +642,76 @@ class BandSessionService {
       return;
     }
 
-    // ── All other history types (HR, Steps) ───────────────────────────────────
-    _ingestHistoryRecords(records);
+    if (cmd == cmdGetHeartData) {
+      // ── HR history: find the most recent valid reading ────────────────────
+      HistoryHr? latestHrRecord;
+      for (final r in records) {
+        if (r is HistoryHr) {
+          if (latestHrRecord == null ||
+              r.timestamp.isAfter(latestHrRecord.timestamp)) {
+            latestHrRecord = r;
+          }
+        }
+      }
+
+      if (latestHrRecord != null) {
+        // Accept HR records up to 2 minutes in the future (clock drift)
+        final cutoffTime = _connectTime != null
+            ? _connectTime!.subtract(const Duration(minutes: 5))
+            : DateTime.now().subtract(const Duration(minutes: 5));
+        final isFresh = latestHrRecord.timestamp.isAfter(cutoffTime);
+        final isNewer = _lastHrRecordTimestamp == null ||
+            latestHrRecord.timestamp.isAfter(_lastHrRecordTimestamp!);
+
+        if (isFresh && isNewer && latestHrRecord.hr > 0) {
+          _lastHrRecordTimestamp = latestHrRecord.timestamp;
+          _lastValidHrTime = DateTime.now();
+          _hasEverReceivedHr = true;
+          debugPrint(
+              '[$deviceId] HR history: ${latestHrRecord.hr} bpm  '
+              'ts:${latestHrRecord.timestamp}');
+          _emit(_state.copyWith(
+            hr: latestHrRecord.hr,
+            isRemoved: false,
+            clearError: true,
+          ));
+        } else {
+          debugPrint(
+              '[$deviceId] HR history record ignored (too old or not newer). '
+              'ts: ${latestHrRecord.timestamp}');
+        }
+      }
+
+      if (isEnd && _historyHrCompleter?.isCompleted == false) {
+        _historyHrCompleter!.complete();
+      }
+      return;
+    }
+
+    // ── All other history types (Steps) ──────────────────────────────────────
+    if (records.isNotEmpty) {
+      HistorySteps? latestStepsRecord;
+      for (final r in records) {
+        if (r is HistorySteps) {
+          if (latestStepsRecord == null ||
+              r.timestamp.isAfter(latestStepsRecord.timestamp)) {
+            latestStepsRecord = r;
+          }
+        }
+      }
+      if (latestStepsRecord != null && latestStepsRecord.steps > 0) {
+        _emit(_state.copyWith(
+          steps: latestStepsRecord.steps,
+          calories: latestStepsRecord.calories,
+          distanceKm: latestStepsRecord.distanceKm,
+        ));
+      }
+    }
+
     if (isEnd) {
       if (cmd == cmdGetDetailData &&
           _historyStepsCompleter?.isCompleted == false) {
         _historyStepsCompleter!.complete();
-      } else if (cmd == cmdGetHeartData &&
-          _historyHrCompleter?.isCompleted == false) {
-        _historyHrCompleter!.complete();
       }
     }
   }

@@ -136,6 +136,22 @@ CREATE TABLE vitals (
     );
   }
 
+  Future<int> getLastValidHr() async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'vitals',
+      columns: ['hr'],
+      where: 'hr > ?',
+      whereArgs: [0],
+      orderBy: 'timestamp DESC',
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return maps.first['hr'] as int? ?? 0;
+    }
+    return 0;
+  }
+
   Future<int> getLastValidSpo2() async {
     final db = await instance.database;
     final maps = await db.query(
@@ -152,12 +168,28 @@ CREATE TABLE vitals (
     return 0;
   }
 
+  Future<double> getLastValidTempC() async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'vitals',
+      columns: ['tempC'],
+      where: 'tempC > ?',
+      whereArgs: [0.0],
+      orderBy: 'timestamp DESC',
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return (maps.first['tempC'] as num?)?.toDouble() ?? 0.0;
+    }
+    return 0.0;
+  }
+
   Future<Map<String, dynamic>?> getLastValidBp() async {
     final db = await instance.database;
     final maps = await db.query(
       'vitals',
       columns: ['bpSys', 'bpDia', 'hrv', 'stress'],
-      where: 'bpSys > ?',
+      where: 'bpSys > ? OR (stress IS NOT NULL AND stress != "0")',
       whereArgs: [0],
       orderBy: 'timestamp DESC',
       limit: 1,
@@ -166,6 +198,15 @@ CREATE TABLE vitals (
       return maps.first;
     }
     return null;
+  }
+
+  Future<void> cleanInvalidZeroRecords() async {
+    final db = await instance.database;
+    // Delete partial zero records (inserted by old 10-second history sync)
+    await db.delete(
+      'vitals',
+      where: 'tempC = 0 AND (stress = "0" OR stress IS NULL)',
+    );
   }
 
   Future<void> deleteOldVitals() async {

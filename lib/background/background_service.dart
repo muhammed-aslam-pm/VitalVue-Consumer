@@ -503,6 +503,11 @@ void onStart(ServiceInstance service) async {
     final device = BluetoothDevice.fromId(remoteIdStr);
 
     // Cache variables for last reliable vitals in this session
+    int lastValidHr = 0;
+    double lastValidTempC = 0.0;
+    int lastValidSteps = 0;
+    double lastValidCalories = 0.0;
+    double lastValidDistanceKm = 0.0;
     int lastValidSpo2 = 0;
     int lastValidBpSys = 0;
     int lastValidBpDia = 0;
@@ -511,7 +516,9 @@ void onStart(ServiceInstance service) async {
 
     try {
       final db = VitalsDatabase.instance;
+      lastValidHr = await db.getLastValidHr();
       lastValidSpo2 = await db.getLastValidSpo2();
+      lastValidTempC = await db.getLastValidTempC();
       final lastBp = await db.getLastValidBp();
       if (lastBp != null) {
         lastValidBpSys = lastBp['bpSys'] as int? ?? 0;
@@ -519,6 +526,7 @@ void onStart(ServiceInstance service) async {
         lastValidHrv = lastBp['hrv'] as int? ?? 0;
         lastValidStress = (lastBp['stress'] ?? '0').toString();
       }
+      await db.cleanInvalidZeroRecords();
     } catch (e) {
       // ignore: avoid_print
       print('[Background] Failed to load last valid vitals from DB: $e');
@@ -547,18 +555,30 @@ void onStart(ServiceInstance service) async {
         final db = VitalsDatabase.instance;
 
         // Update the cached values if we received new valid vitals in this state snapshot
+        if (state.hr > 0) {
+          lastValidHr = state.hr;
+        }
+        if (state.tempC > 0) {
+          lastValidTempC = state.tempC;
+        }
+        if (state.steps > 0) {
+          lastValidSteps = state.steps;
+          lastValidCalories = state.calories;
+          lastValidDistanceKm = state.distanceKm;
+        }
         if (state.spo2 > 0) {
           lastValidSpo2 = state.spo2;
         }
         if (state.systolic != null && state.systolic! > 0) {
           lastValidBpSys = state.systolic!;
           lastValidBpDia = state.diastolic ?? 0;
-          lastValidHrv = state.hrv ?? 0;
-          lastValidStress = (state.stress ?? 0).toString();
         }
-
-        final hasNewBp = state.isNewBp;
-        final hasNewSpo2 = state.isNewSpo2;
+        if (state.hrv != null && state.hrv! > 0) {
+          lastValidHrv = state.hrv!;
+        }
+        if (state.stress != null && state.stress! > 0) {
+          lastValidStress = state.stress!.toString();
+        }
 
         int phoneBattery = -1;
         try {
@@ -572,16 +592,17 @@ void onStart(ServiceInstance service) async {
           'timestamp': DateTime.now().millisecondsSinceEpoch,
           'patient_id': profile.id,
           'device_id': deviceId,
-          'hr': state.hr,
-          'spo2': hasNewSpo2 ? state.spo2 : 0,
-          'tempC': state.tempC,
-          'bpSys': hasNewBp ? (state.systolic ?? 0) : 0,
-          'bpDia': hasNewBp ? (state.diastolic ?? 0) : 0,
-          'hrv': hasNewBp ? (state.hrv ?? 0) : 0,
-          'stress': hasNewBp ? (state.stress ?? 0).toString() : '0',
-          'steps': state.steps,
-          'calories': state.calories,
-          'distanceKm': state.distanceKm,
+          // Always use cached values so local DB never stores zeros
+          'hr': lastValidHr,
+          'spo2': lastValidSpo2,
+          'tempC': lastValidTempC,
+          'bpSys': lastValidBpSys,
+          'bpDia': lastValidBpDia,
+          'hrv': lastValidHrv,
+          'stress': lastValidStress,
+          'steps': lastValidSteps,
+          'calories': lastValidCalories,
+          'distanceKm': lastValidDistanceKm,
           'battery': state.battery,
           'isRemoved': state.isRemoved,
           'isIngested': 0,
@@ -592,16 +613,16 @@ void onStart(ServiceInstance service) async {
         final success = await api.ingest(
           patientId: profile.id,
           deviceId: deviceId,
-          hr: state.hr,
+          hr: lastValidHr,
           spo2: lastValidSpo2,
-          tempC: state.tempC,
+          tempC: lastValidTempC,
           bpSys: lastValidBpSys,
           bpDia: lastValidBpDia,
           hrv: lastValidHrv,
           stress: lastValidStress,
-          steps: state.steps,
-          calories: state.calories,
-          distanceKm: state.distanceKm,
+          steps: lastValidSteps,
+          calories: lastValidCalories,
+          distanceKm: lastValidDistanceKm,
           battery: state.battery,
           phoneBattery: phoneBattery,
           isRemoved: state.isRemoved,

@@ -448,7 +448,7 @@ class JStyleCodec {
 
     // Historical HR
     if (dt == cmdGetHeartData) {
-      const records = <HistoryRecord>[];
+      final records = <HistoryRecord>[];
       const count = 24;
       final size = value.length ~/ count;
       bool isEnd = false;
@@ -482,7 +482,7 @@ class JStyleCodec {
 
     // Historical Steps
     if (dt == cmdGetDetailData) {
-      const records = <HistoryRecord>[];
+      final records = <HistoryRecord>[];
       const count = 25;
       final size = value.length ~/ count;
       bool isEnd = false;
