@@ -5,7 +5,6 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../ble/band_ble_client.dart';
 import '../protocol/jstyle_codec.dart';
-import '../db/vitals_database.dart';
 import 'band_timing_logger.dart';
 
 const _spo2KickIntervalS = 300; // SpO2 history sync every 300s
@@ -146,9 +145,26 @@ class BandSessionService {
   // Staleness guard for HR history records
   DateTime? _lastHrRecordTimestamp;
 
+  // Off-wrist HR detection settings (5 minutes = 300 seconds threshold)
+  static const int _offWristHrThresholdSeconds = 300;
+  int? _lastSeenHr;
+  DateTime _lastHrChangeTime = DateTime.now();
+
   // Watchdog gate: don't trigger off-wrist until we've seen at least one
   // valid HR reading since connect.
   bool _hasEverReceivedHr = false;
+
+  /// Updates HR freshness and tracks changes for static HR detection.
+  void _recordValidHr(int hr) {
+    if (hr <= 0) return;
+    final now = DateTime.now();
+    _lastValidHrTime = now;
+    _hasEverReceivedHr = true;
+    if (_lastSeenHr == null || hr != _lastSeenHr) {
+      _lastSeenHr = hr;
+      _lastHrChangeTime = now;
+    }
+  }
 
   // Staleness guard: only emit a BP reading if its timestamp is newer than
   // the last one we already surfaced. Prevents repeated identical values
@@ -228,6 +244,8 @@ class BandSessionService {
     _lastKickTime = now;
     _lastBpKickTime = now;
     _lastValidHrTime = now;
+    _lastHrChangeTime = now;
+    _lastSeenHr = null;
 
     _mainLoopTimer = Timer.periodic(
       const Duration(seconds: _loopTickS),
@@ -304,12 +322,21 @@ class BandSessionService {
     // ── Off-wrist watchdog ───────────────────────────────────────────────────
     if (_hasEverReceivedHr) {
       final secondsSinceValidHr = now.difference(_lastValidHrTime).inSeconds;
+      final secondsStaticHr = _lastSeenHr != null
+          ? now.difference(_lastHrChangeTime).inSeconds
+          : 0;
 
-      // Declare removed if no valid HR received for >= 600s (10 minutes)
-      if (secondsSinceValidHr >= 600 && !_state.isRemoved) {
+      final noHrTimeout = secondsSinceValidHr >= _offWristHrThresholdSeconds;
+      final staticHrTimeout = _lastSeenHr != null &&
+          secondsStaticHr >= _offWristHrThresholdSeconds;
+
+      if ((noHrTimeout || staticHrTimeout) && !_state.isRemoved) {
+        final reason = noHrTimeout
+            ? 'No valid HR for >=${secondsSinceValidHr}s'
+            : 'Static HR ($_lastSeenHr bpm) unchanged for >=${secondsStaticHr}s';
         debugPrint(
-            '[$deviceId] WATCHDOG: No valid HR for >=${secondsSinceValidHr}s. Band REMOVED.');
-        _emit(_state.copyWith(isRemoved: true));
+            '[$deviceId] WATCHDOG: $reason. Band REMOVED.');
+        _emit(_state.copyWith(isRemoved: true, hr: 0));
       }
     }
 
@@ -354,10 +381,9 @@ class BandSessionService {
       case RealtimeEvent(:final data):
         var next = _state;
         if (data.hr > 0) {
+          _recordValidHr(data.hr);
           next =
               next.copyWith(hr: data.hr, isRemoved: false, clearError: true);
-          _lastValidHrTime = DateTime.now();
-          _hasEverReceivedHr = true; // unlock the watchdog
         } else {
           // data.hr == 0
           _hrHistory.clear();
@@ -455,7 +481,9 @@ class BandSessionService {
         ):
         // 0x28 live spot-check measurement — separate from 0x56 history.
         // Keeps working regardless of whether any history is stored yet.
-        _lastValidHrTime = DateTime.now();
+        if (hr > 0) {
+          _recordValidHr(hr);
+        }
         final hrVal = hr > 0 ? hr : _state.hr;
         final spo2Val = spo2 > 0 ? spo2 : _state.spo2;
         final hrvVal = hrv > 0 ? hrv : _state.hrv;
@@ -548,15 +576,12 @@ class BandSessionService {
 
         if (isFreshSessionRecord && isNewer) {
           _lastBpRecordTimestamp = latestRecord.timestamp;
-          // BP receipt proves the band is worn — refresh watchdog.
-          _lastValidHrTime = DateTime.now();
 
           _emit(_state.copyWith(
             systolic: latestRecord.systolic,
             diastolic: latestRecord.diastolic,
             hrv: latestRecord.hrv,
             stress: latestRecord.stress,
-            isRemoved: false,
             clearError: true,
             isNewBp: true,
           ));
@@ -627,10 +652,8 @@ class BandSessionService {
           latestRecord.timestamp.isAfter(cutoffTime)) {
         debugPrint(
             '[$deviceId] SpO2 history: ${latestRecord.spo2}% (ts: ${latestRecord.timestamp})');
-        _lastValidHrTime = DateTime.now();
         _emit(_state.copyWith(
           spo2: latestRecord.spo2,
-          isRemoved: false,
           clearError: true,
           isNewSpo2: true,
         ));
@@ -665,8 +688,7 @@ class BandSessionService {
 
         if (isFresh && isNewer && latestHrRecord.hr > 0) {
           _lastHrRecordTimestamp = latestHrRecord.timestamp;
-          _lastValidHrTime = DateTime.now();
-          _hasEverReceivedHr = true;
+          _recordValidHr(latestHrRecord.hr);
           debugPrint(
               '[$deviceId] HR history: ${latestHrRecord.hr} bpm  '
               'ts:${latestHrRecord.timestamp}');
@@ -784,6 +806,8 @@ class BandSessionService {
             now.subtract(const Duration(seconds: _spo2KickIntervalS - 40));
         _lastBpKickTime = now;
         _lastValidHrTime = now;
+        _lastHrChangeTime = now;
+        _lastSeenHr = null;
 
         _mainLoopTimer = Timer.periodic(
           const Duration(seconds: _loopTickS),
