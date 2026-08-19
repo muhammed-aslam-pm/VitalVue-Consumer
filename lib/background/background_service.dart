@@ -452,9 +452,11 @@ void onStart(ServiceInstance service) async {
   bool wasConnected = false;
   bool wasRemoved = false;
   bool isManualDisconnect = false;
+  Timer? patientBandRemovalTimer;
 
   service.on('stopService').listen((event) async {
     isManualDisconnect = true;
+    patientBandRemovalTimer?.cancel();
     await session?.disconnect();
     service.stopSelf();
   });
@@ -464,6 +466,7 @@ void onStart(ServiceInstance service) async {
   // avoiding the double-click race on reconnect.
   service.on('disconnectDevice').listen((event) async {
     isManualDisconnect = true;
+    patientBandRemovalTimer?.cancel();
     await session?.disconnect();
     session = null;
     wasConnected = false;
@@ -488,6 +491,7 @@ void onStart(ServiceInstance service) async {
     isManualDisconnect = false;
     wasConnected = false;
     wasRemoved = false;
+    patientBandRemovalTimer?.cancel();
     final remoteIdStr = event['remote_id'] as String;
     final deviceId = event['device_id'] as String;
 
@@ -697,6 +701,7 @@ void onStart(ServiceInstance service) async {
       // ── Off-Wrist Detection ──
       if (!wasRemoved && state.isRemoved) {
         wasRemoved = true;
+        patientBandRemovalTimer?.cancel();
         final enableTts = await BackgroundPreferences.getEnableTts();
         final enablePush = await BackgroundPreferences.getEnablePush();
 
@@ -726,8 +731,44 @@ void onStart(ServiceInstance service) async {
             ),
           );
         }
+
+        // Schedule 10-minute follow-up alert if band remains off-wrist
+        patientBandRemovalTimer = Timer(const Duration(minutes: 10), () async {
+          if (wasRemoved) {
+            final followUpTts = await BackgroundPreferences.getEnableTts();
+            final followUpPush = await BackgroundPreferences.getEnablePush();
+
+            if (followUpTts) {
+              await announceRepeat(patientTts,
+                  'Follow-up Warning: Your band has been off-wrist for 10 minutes. Please put your band back on immediately.');
+            } else {
+              await triggerAlertFeedback();
+            }
+
+            if (followUpPush) {
+              flutterLocalNotificationsPlugin.show(
+                id: 993,
+                title: 'Follow-Up: Band Still Off-Wrist',
+                body: 'Your band has been off-wrist for over 10 minutes. Please re-wear it immediately.',
+                notificationDetails: const NotificationDetails(
+                  android: AndroidNotificationDetails(
+                    'critical_alerts_channel',
+                    'Critical Alerts',
+                    icon: 'ic_bg_service_small',
+                    importance: Importance.max,
+                    priority: Priority.max,
+                    enableVibration: false,
+                    playSound: true,
+                    sound: RawResourceAndroidNotificationSound('warning_beep'),
+                  ),
+                ),
+              );
+            }
+          }
+        });
       } else if (wasRemoved && !state.isRemoved) {
         wasRemoved = false;
+        patientBandRemovalTimer?.cancel();
       }
 
       if (service is AndroidServiceInstance) {
