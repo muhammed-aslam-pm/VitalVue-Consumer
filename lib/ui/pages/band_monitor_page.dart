@@ -48,54 +48,65 @@ class _BandMonitorPageState extends State<BandMonitorPage>
   }
 
   Future<void> _requestPermissionsAndScan(BuildContext context) async {
-    final statuses = await [
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-      Permission.locationWhenInUse,
-      Permission.ignoreBatteryOptimizations,
-    ].request();
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
 
-    final locationGranted = await Permission.locationWhenInUse.isGranted ||
-        await Permission.location.isGranted ||
-        statuses[Permission.locationWhenInUse]?.isGranted == true;
+    if (isAndroid) {
+      final statuses = await [
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.locationWhenInUse,
+        Permission.ignoreBatteryOptimizations,
+      ].request();
 
-    final bleScanGranted = await Permission.bluetoothScan.isGranted ||
-        statuses[Permission.bluetoothScan]?.isGranted == true;
-    final bleConnectGranted = await Permission.bluetoothConnect.isGranted ||
-        statuses[Permission.bluetoothConnect]?.isGranted == true;
+      final bleScanGranted = await Permission.bluetoothScan.isGranted ||
+          statuses[Permission.bluetoothScan]?.isGranted == true;
+      final bleConnectGranted = await Permission.bluetoothConnect.isGranted ||
+          statuses[Permission.bluetoothConnect]?.isGranted == true;
+      final locationGranted = await Permission.locationWhenInUse.isGranted ||
+          await Permission.location.isGranted ||
+          statuses[Permission.locationWhenInUse]?.isGranted == true;
 
-    // On Android 12+, Bluetooth Scan and Connect are required.
-    // On Android <= 11, Location permission is required for BLE scanning.
-    final isPermissionsOk = (bleScanGranted && bleConnectGranted) || locationGranted;
+      // On Android 12+, Bluetooth Scan & Connect are required.
+      // On Android <= 11, Location permission is required for BLE scan.
+      final isPermissionsOk = (bleScanGranted && bleConnectGranted) || locationGranted;
 
-    if (!isPermissionsOk) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Bluetooth and Location permissions are required to scan for devices.'),
-            backgroundColor: Color(0xFFE53935),
-          ),
-        );
+      if (!isPermissionsOk) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Bluetooth and Location permissions are required to scan for devices.'),
+              backgroundColor: Color(0xFFE53935),
+            ),
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    if (!context.mounted) return;
-
-    // Verify Location Services (GPS) is turned on (required for Android <= 11)
-    final isLocationServiceEnabled = await Permission.location.serviceStatus.isEnabled;
-    if (!isLocationServiceEnabled) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Please turn on Location Services (GPS) to discover nearby devices.'),
-            backgroundColor: Color(0xFFE53935),
-          ),
-        );
+      // On Android <= 11 (where bleScanGranted is false), GPS location service MUST be ON
+      if (!bleScanGranted) {
+        try {
+          final isLocationServiceEnabled =
+              await Permission.location.serviceStatus.isEnabled;
+          if (!isLocationServiceEnabled) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Please turn on Location Services (GPS) to discover nearby devices on this Android version.'),
+                  backgroundColor: Color(0xFFE53935),
+                ),
+              );
+            }
+            return;
+          }
+        } catch (_) {}
       }
-      return;
+    } else {
+      // iOS permission handling
+      await [
+        Permission.bluetooth,
+      ].request();
     }
 
     if (!context.mounted) return;

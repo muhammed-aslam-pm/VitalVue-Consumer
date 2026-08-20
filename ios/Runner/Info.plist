@@ -10,6 +10,7 @@
 	<string>Location is required to scan for Bluetooth devices on iOS.</string>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>bluetooth-central</string>
 		<string>audio</string>
 		<string>fetch</string>
 		<string>processing</string>

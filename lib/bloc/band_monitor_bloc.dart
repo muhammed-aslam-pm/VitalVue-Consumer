@@ -121,12 +121,12 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
 
   // ── Scan ──────────────────────────────────────────────────────────────────
 
-  Future<void> _onStartScan(StartScan _, Emitter<BandMonitorState> emit) async {
+  Future<void> _onStartScan(StartScan event, Emitter<BandMonitorState> emit) async {
     emit(const BandScanningState());
     await _scanSub?.cancel();
 
     // Dispatch each scan result as an internal event — never emit() from here.
-    _scanSub = BandBleClient.scan().listen((r) {
+    _scanSub = BandBleClient.scan(showAll: event.showAll).listen((r) {
       if (!isClosed) add(_ScanResultReceived(r));
     });
   }

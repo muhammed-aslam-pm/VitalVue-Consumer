@@ -7,9 +7,10 @@ abstract class BandMonitorEvent extends Equatable {
 }
 
 class StartScan extends BandMonitorEvent {
-  const StartScan();
+  final bool showAll;
+  const StartScan({this.showAll = false});
   @override
-  List<Object?> get props => [];
+  List<Object?> get props => [showAll];
 }
 
 class StopScan extends BandMonitorEvent {

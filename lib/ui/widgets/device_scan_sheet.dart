@@ -8,14 +8,28 @@ import '../../bloc/band_monitor_event.dart';
 import '../../bloc/band_monitor_state.dart';
 
 /// Bottom sheet for displaying BLE scan results and connecting to a device.
-class DeviceScanSheet extends StatelessWidget {
+class DeviceScanSheet extends StatefulWidget {
   const DeviceScanSheet({super.key});
+
+  @override
+  State<DeviceScanSheet> createState() => _DeviceScanSheetState();
+}
+
+class _DeviceScanSheetState extends State<DeviceScanSheet> {
+  bool _showAllDevices = false;
+
+  void _toggleShowAll(bool value) {
+    setState(() {
+      _showAllDevices = value;
+    });
+    context.read<BandMonitorBloc>().add(StartScan(showAll: value));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.7,
+        maxHeight: MediaQuery.of(context).size.height * 0.75,
       ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -31,30 +45,67 @@ class DeviceScanSheet extends StatelessWidget {
             child: Container(
               width: 40,
               height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
+              margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-          Text(
-            'Nearby JStyle Devices',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Nearby JStyle Devices',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Scanning for JCV5 / JStyle smartbands…',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Filter toggle row
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Show all BLE devices',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Switch.adaptive(
+                  value: _showAllDevices,
+                  onChanged: _toggleShowAll,
+                  activeThumbColor: const Color(0xFF1A73E8),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Scanning for JCV5 / JStyle smartbands…',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Flexible(
             child: BlocBuilder<BandMonitorBloc, BandMonitorState>(
               builder: (context, state) {
@@ -74,6 +125,17 @@ class DeviceScanSheet extends StatelessWidget {
                                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                 fontSize: 14),
                           ),
+                          if (!_showAllDevices) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Can\'t see your band? Turn on "Show all BLE devices" above.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -92,9 +154,11 @@ class DeviceScanSheet extends StatelessWidget {
                   ),
                   itemBuilder: (context, i) {
                     final r = results[i] as ScanResult;
-                    final name = r.device.platformName.isNotEmpty
-                        ? r.device.platformName
-                        : 'Unknown Device';
+                    final pName = r.device.platformName.trim();
+                    final aName = r.advertisementData.advName.trim();
+                    final name = pName.isNotEmpty
+                        ? pName
+                        : (aName.isNotEmpty ? aName : 'Band ${r.device.remoteId.str}');
                     final rssi = r.rssi;
 
                     return ListTile(
@@ -174,3 +238,4 @@ class DeviceScanSheet extends StatelessWidget {
     );
   }
 }
+
