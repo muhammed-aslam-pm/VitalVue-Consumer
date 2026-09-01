@@ -9,6 +9,7 @@ class BackgroundPreferences {
   static const _kDeviceName = 'bg_device_name';
   static const _kEnableTTS = 'bg_enable_tts';
   static const _kEnablePush = 'bg_enable_push';
+  static const _kEnableAccidentalDisconnectAlert = 'bg_enable_accidental_disconnect_alert';
   static const _kPatientNames = 'bg_patient_names';
 
   static Future<void> saveProfile(UserProfile profile) async {
@@ -76,6 +77,17 @@ class BackgroundPreferences {
   static Future<void> setEnablePush(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kEnablePush, value);
+  }
+
+  static Future<bool> getEnableAccidentalDisconnectAlert() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs.getBool(_kEnableAccidentalDisconnectAlert) ?? false;
+  }
+
+  static Future<void> setEnableAccidentalDisconnectAlert(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kEnableAccidentalDisconnectAlert, value);
   }
 
   static Future<void> savePatientNames(Map<int, String> names) async {

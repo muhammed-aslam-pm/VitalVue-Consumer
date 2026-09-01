@@ -665,34 +665,39 @@ void onStart(ServiceInstance service) async {
       // ── Accidental Disconnect Detection ──
       if (wasConnected && isDisconnected && !isManualDisconnect) {
         wasConnected = false;
-        final enableTts = await BackgroundPreferences.getEnableTts();
-        final enablePush = await BackgroundPreferences.getEnablePush();
+        final enableAccidentalAlert =
+            await BackgroundPreferences.getEnableAccidentalDisconnectAlert();
 
-        if (enableTts) {
-          await announceRepeat(patientTts,
-              'Warning: Your band was disconnected accidentally. Attempting to reconnect.');
-        } else {
-          await triggerAlertFeedback();
-        }
+        if (enableAccidentalAlert) {
+          final enableTts = await BackgroundPreferences.getEnableTts();
+          final enablePush = await BackgroundPreferences.getEnablePush();
 
-        if (enablePush) {
-          flutterLocalNotificationsPlugin.show(
-            id: 991,
-            title: 'Band Disconnected',
-            body: 'Your band lost connection accidentally. Attempting to reconnect...',
-            notificationDetails: const NotificationDetails(
-              android: AndroidNotificationDetails(
-                'critical_alerts_channel',
-                'Critical Alerts',
-                icon: 'ic_bg_service_small',
-                importance: Importance.max,
-                priority: Priority.max,
-                enableVibration: false,
-                playSound: true,
-                sound: RawResourceAndroidNotificationSound('warning_beep'),
+          if (enableTts) {
+            await announceRepeat(patientTts,
+                'Warning: Your band was disconnected accidentally. Attempting to reconnect.');
+          } else {
+            await triggerAlertFeedback();
+          }
+
+          if (enablePush) {
+            flutterLocalNotificationsPlugin.show(
+              id: 991,
+              title: 'Band Disconnected',
+              body: 'Your band lost connection accidentally. Attempting to reconnect...',
+              notificationDetails: const NotificationDetails(
+                android: AndroidNotificationDetails(
+                  'critical_alerts_channel',
+                  'Critical Alerts',
+                  icon: 'ic_bg_service_small',
+                  importance: Importance.max,
+                  priority: Priority.max,
+                  enableVibration: false,
+                  playSound: true,
+                  sound: RawResourceAndroidNotificationSound('warning_beep'),
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
       } else if (isConnected) {
         wasConnected = true;
