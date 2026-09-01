@@ -145,25 +145,15 @@ class BandSessionService {
   // Staleness guard for HR history records
   DateTime? _lastHrRecordTimestamp;
 
-  // Off-wrist HR detection settings (5 minutes = 300 seconds threshold)
-  static const int _offWristHrThresholdSeconds = 300;
-  int? _lastSeenHr;
-  DateTime _lastHrChangeTime = DateTime.now();
+  // Off-wrist HR detection settings (matches Pi WATCHDOG_TIMEOUT_S = 100s)
+  static const int _offWristHrThresholdSeconds = 100;
+  static const int _spo2KickDurationS = 45;
+  DateTime _lastSpo2KickTime = DateTime(2000);
 
-  // Watchdog gate: don't trigger off-wrist until we've seen at least one
-  // valid HR reading since connect.
-  bool _hasEverReceivedHr = false;
-
-  /// Updates HR freshness and tracks changes for static HR detection.
+  /// Updates HR freshness and tracks pulse activity.
   void _recordValidHr(int hr) {
     if (hr <= 0) return;
-    final now = DateTime.now();
-    _lastValidHrTime = now;
-    _hasEverReceivedHr = true;
-    if (_lastSeenHr == null || hr != _lastSeenHr) {
-      _lastSeenHr = hr;
-      _lastHrChangeTime = now;
-    }
+    _lastValidHrTime = DateTime.now();
   }
 
   // Staleness guard: only emit a BP reading if its timestamp is newer than
@@ -213,7 +203,6 @@ class BandSessionService {
     _firstTemp = true;
     _firstBp = true;
     _firstBattery = true;
-    _hasEverReceivedHr = false; // reset so watchdog doesn't fire before first HR
     _lastVitalsTime = null;
     _timingLogger = BandTimingLogger(deviceId: deviceId);
     await _timingLogger?.open();
@@ -244,8 +233,6 @@ class BandSessionService {
     _lastKickTime = now;
     _lastBpKickTime = now;
     _lastValidHrTime = now;
-    _lastHrChangeTime = now;
-    _lastSeenHr = null;
 
     _mainLoopTimer = Timer.periodic(
       const Duration(seconds: _loopTickS),
@@ -289,6 +276,8 @@ class BandSessionService {
         'RealTimeStep', _codec.realTimeStep(enable: true, tempEnable: true));
     await _write('SetDeviceTime', _codec.setDeviceTime());
     await _write('SetPersonalInfo', _codec.setPersonalInfo(_personalInfo));
+    await _write(
+        'Kickstart_HR', _codec.setMeasurement(measHr, 3600, open: true));
     await _write('GetBattery', _codec.getBattery());
 
     // 2. Enable background periodic auto-monitoring (mode 2 = interval measurement)
@@ -310,6 +299,7 @@ class BandSessionService {
     _lastKickTime = now;
     _lastBpKickTime = now;
     _lastHrKickTime = now;
+    _lastValidHrTime = now;
   }
 
   // ── Main loop tick ─────────────────────────────────────────────────────────
@@ -319,25 +309,46 @@ class BandSessionService {
 
     final now = DateTime.now();
 
-    // ── Off-wrist watchdog ───────────────────────────────────────────────────
-    if (_hasEverReceivedHr) {
-      final secondsSinceValidHr = now.difference(_lastValidHrTime).inSeconds;
-      final secondsStaticHr = _lastSeenHr != null
-          ? now.difference(_lastHrChangeTime).inSeconds
-          : 0;
+    final isProcessingSpo2 = now.difference(_lastSpo2KickTime).inSeconds <
+        (_spo2KickDurationS + 30);
 
-      final noHrTimeout = secondsSinceValidHr >= _offWristHrThresholdSeconds;
-      final staticHrTimeout = _lastSeenHr != null &&
-          secondsStaticHr >= _offWristHrThresholdSeconds;
+    // ── Dynamic 0-pulse watchdog verification (matches Pi logic) ───────────────
+    if (!isProcessingSpo2) {
+      final secondsSinceValidPulse = now.difference(_lastValidHrTime).inSeconds;
 
-      if ((noHrTimeout || staticHrTimeout) && !_state.isRemoved) {
-        final reason = noHrTimeout
-            ? 'No valid HR for >=${secondsSinceValidHr}s'
-            : 'Static HR ($_lastSeenHr bpm) unchanged for >=${secondsStaticHr}s';
-        debugPrint(
-            '[$deviceId] WATCHDOG: $reason. Band REMOVED.');
-        _emit(_state.copyWith(isRemoved: true, hr: 0));
+      if (secondsSinceValidPulse > _offWristHrThresholdSeconds) {
+        if (!_state.isRemoved) {
+          debugPrint(
+              '[$deviceId] WATCHDOG EXPIRED: HR flatlined at 0 for >${_offWristHrThresholdSeconds}s. Setting band status to REMOVED.');
+          _emit(_state.copyWith(isRemoved: true, hr: 0));
+        }
       }
+    }
+
+    // ── Stalled notification stream recovery handshake (matches Pi logic) ─────
+    if (!isProcessingSpo2 &&
+        now.difference(_lastValidHrTime).inSeconds > 120) {
+      debugPrint(
+          '[$deviceId] Stalled stream packet gap detected. Issuing stream restart handshake.');
+      _write('Recover_RealTime',
+          _codec.realTimeStep(enable: true, tempEnable: true));
+      _write('Kickstart_HR',
+          _codec.setMeasurement(measHr, 3600, open: true));
+      _lastValidHrTime = now;
+    }
+
+    // ── Explicit Post-SpO2 Restoration Step (matches Pi logic) ────────────────
+    final spo2Elapsed = now.difference(_lastSpo2KickTime).inSeconds;
+    if (_lastSpo2KickTime.year > 2000 &&
+        spo2Elapsed >= _spo2KickDurationS + 2 &&
+        spo2Elapsed <= _spo2KickDurationS + 4) {
+      debugPrint(
+          '[$deviceId] SpO2 cycle finished. Restoring streaming mode configuration.');
+      _write('Restore_Stream',
+          _codec.realTimeStep(enable: true, tempEnable: true));
+      _write('Kickstart_HR',
+          _codec.setMeasurement(measHr, 3600, open: true));
+      _lastValidHrTime = now;
     }
 
     // ── Periodic history sync (HR, BP & SpO2) ────────────────────────────────
@@ -355,6 +366,7 @@ class BandSessionService {
 
     if (triggerSpo2) {
       _lastKickTime = now;
+      _lastSpo2KickTime = now;
       _write('GetHistorySpo2', _codec.getHistorySpo2());
     }
     if (triggerBp) {
@@ -552,7 +564,8 @@ class BandSessionService {
   }) {
     if (cmd == cmdGetHrvData) {
       // ── BP/HRV history ────────────────────────────────────────────────────
-      // Records arrive oldest-first; find the most recent valid one.
+      // Feed watchdog timer because device responded over BLE successfully (matches Pi logic)
+      _lastValidHrTime = DateTime.now();
       // Staleness guard: only emit if this record's timestamp is newer than
       // the last one we already surfaced (prevents repeated identical values).
       HistoryBpHrv? latestRecord;
@@ -806,8 +819,6 @@ class BandSessionService {
             now.subtract(const Duration(seconds: _spo2KickIntervalS - 40));
         _lastBpKickTime = now;
         _lastValidHrTime = now;
-        _lastHrChangeTime = now;
-        _lastSeenHr = null;
 
         _mainLoopTimer = Timer.periodic(
           const Duration(seconds: _loopTickS),
