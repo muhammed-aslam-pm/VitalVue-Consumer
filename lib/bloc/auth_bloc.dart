@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../auth/auth_repository.dart';
 import '../auth/auth_token_store.dart';
@@ -45,6 +46,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       try {
         final profile = await _repo.getProfile(token);
         await BackgroundPreferences.saveProfile(profile);
+        Sentry.configureScope((scope) => scope.setUser(SentryUser(id: profile.id.toString())));
         emit(AuthAuthenticated(profile));
       } catch (e) {
         // If profile fetch fails on startup (e.g., token expired and refresh failed),
@@ -88,6 +90,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       
       final profile = await _repo.getProfile(token);
       await BackgroundPreferences.saveProfile(profile);
+      Sentry.configureScope((scope) => scope.setUser(SentryUser(id: profile.id.toString())));
       emit(AuthAuthenticated(profile));
     } on AuthException catch (e) {
       emit(AuthError(
@@ -105,6 +108,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     await BackgroundPreferences.clearAll();
     await VitalsDatabase.instance.clearAllData();
     await _repo.logout();
+    Sentry.configureScope((scope) => scope.setUser(null));
     emit(const AuthUnauthenticated());
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../ble/band_ble_client.dart';
 import '../protocol/jstyle_codec.dart';
@@ -107,6 +108,7 @@ class BandSessionService {
     required this.deviceId,
     required PersonalInfo personalInfo,
     required this.onIngest,
+    this.onHistoryRecords,
   }) : _personalInfo = personalInfo;
 
   final int patientId;
@@ -115,6 +117,9 @@ class BandSessionService {
 
   /// Called every [_ingestIntervalS] seconds with the current snapshot.
   final Future<void> Function(BandState state) onIngest;
+
+  /// Called when historical vitals records arrive from the band.
+  final Future<void> Function(List<HistoryRecord> records, int cmd, bool isEnd)? onHistoryRecords;
 
   final _codec = JStyleCodec();
   final _ble = BandBleClient();
@@ -213,6 +218,11 @@ class BandSessionService {
       connectionStatus: BleConnectionStatus.connected,
       clearError: true,
     ));
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'Band BLE connected ($deviceId)',
+      category: 'ble.session',
+      level: SentryLevel.info,
+    ));
 
     // Watch for unexpected disconnects.
     _connStateSub = _ble.connectionStateStream.listen((s) {
@@ -255,6 +265,11 @@ class BandSessionService {
     await _connStateSub?.cancel();
     await _ble.disconnect();
     _emit(_state.copyWith(connectionStatus: BleConnectionStatus.disconnected));
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'Band BLE disconnected ($deviceId)',
+      category: 'ble.session',
+      level: SentryLevel.info,
+    ));
     await _runIngest(); // Immediately push disconnected status to cloud and wait for it
     await _timingLogger?.close();
     _timingLogger = null;
@@ -300,6 +315,11 @@ class BandSessionService {
     _lastBpKickTime = now;
     _lastHrKickTime = now;
     _lastValidHrTime = now;
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'Band init sequence complete',
+      category: 'ble.session',
+      level: SentryLevel.info,
+    ));
   }
 
   // ── Main loop tick ─────────────────────────────────────────────────────────
@@ -320,6 +340,11 @@ class BandSessionService {
         if (!_state.isRemoved) {
           debugPrint(
               '[$deviceId] WATCHDOG EXPIRED: HR flatlined at 0 for >${_offWristHrThresholdSeconds}s. Setting band status to REMOVED.');
+          Sentry.addBreadcrumb(Breadcrumb(
+            message: 'Off-wrist watchdog expired: HR flatlined at 0 for >${_offWristHrThresholdSeconds}s',
+            category: 'ble.watchdog',
+            level: SentryLevel.warning,
+          ));
           _emit(_state.copyWith(isRemoved: true, hr: 0));
         }
       }
@@ -330,6 +355,11 @@ class BandSessionService {
         now.difference(_lastValidHrTime).inSeconds > 120) {
       debugPrint(
           '[$deviceId] Stalled stream packet gap detected. Issuing stream restart handshake.');
+      Sentry.addBreadcrumb(Breadcrumb(
+        message: 'Stalled stream packet gap detected, issuing stream restart handshake',
+        category: 'ble.recovery',
+        level: SentryLevel.warning,
+      ));
       _write('Recover_RealTime',
           _codec.realTimeStep(enable: true, tempEnable: true));
       _write('Kickstart_HR',
@@ -562,6 +592,10 @@ class BandSessionService {
     required List<HistoryRecord> records,
     required bool isEnd,
   }) {
+    if (records.isNotEmpty || isEnd) {
+      onHistoryRecords?.call(records, cmd, isEnd);
+    }
+
     if (cmd == cmdGetHrvData) {
       // ── BP/HRV history ────────────────────────────────────────────────────
       // Feed watchdog timer because device responded over BLE successfully (matches Pi logic)
@@ -772,6 +806,11 @@ class BandSessionService {
       debugPrint('[$deviceId] → $name');
     } catch (e) {
       debugPrint('[$deviceId] write failed [$name]: $e');
+      Sentry.addBreadcrumb(Breadcrumb(
+        message: 'GATT write failed [$name]: $e',
+        category: 'ble.gatt',
+        level: SentryLevel.warning,
+      ));
       _emit(_state.copyWith(errorMessage: 'Write failed: $name'));
     }
     await Future.delayed(const Duration(milliseconds: 100));
@@ -784,6 +823,11 @@ class BandSessionService {
 
   void _handleDisconnect() {
     _cancelTimers();
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'Unexpected BLE disconnect, starting auto-reconnect',
+      category: 'ble.session',
+      level: SentryLevel.warning,
+    ));
     _emit(_state.copyWith(connectionStatus: BleConnectionStatus.disconnected));
     _runIngest(); // Fire-and-forget for unexpected disconnects
 
@@ -801,6 +845,11 @@ class BandSessionService {
       final connected = await _ble.connect(_device!);
       if (connected) {
         debugPrint('[$deviceId] Auto-reconnect successful!');
+        Sentry.addBreadcrumb(Breadcrumb(
+          message: 'BLE auto-reconnect successful',
+          category: 'ble.session',
+          level: SentryLevel.info,
+        ));
 
         _emit(_state.copyWith(
           connectionStatus: BleConnectionStatus.connected,

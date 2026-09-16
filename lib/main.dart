@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jband_monitor/bloc/patients_event.dart';
@@ -23,6 +24,8 @@ import 'ui/pages/staff_dashboard_page.dart';
 import 'background/background_service.dart';
 
 // ── Configuration — edit these or pass via --dart-define ─────────────────────
+const _kDefaultSentryDsn =
+    'https://dd4d1111c317b961e3f1f6e80430ea9a@o4512067849945088.ingest.us.sentry.io/4512067856105472';
 const _kApiBaseUrl = String.fromEnvironment(
   'BAND_API_URL',
   defaultValue: 'https://vitalvue-api.genesysailabs.com',
@@ -41,14 +44,30 @@ const _kPersonalInfo = PersonalInfo(
 // ─────────────────────────────────────────────────────────────────────────────
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  SentryWidgetsFlutterBinding.ensureInitialized();
   await initializeBackgroundService();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
   ));
-  runApp(const JBandMonitorApp());
+
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: _kDefaultSentryDsn);
+      options.tracesSampleRate = 1.0;
+      options.sendDefaultPii = true;
+    },
+    appRunner: () async {
+      runApp(
+        SentryScreenshotWidget(
+          child: SentryUserInteractionWidget(
+            child: const JBandMonitorApp(),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class JBandMonitorApp extends StatefulWidget {

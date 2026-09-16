@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:battery_plus/battery_plus.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../cloud/band_vitals_api.dart';
 import '../auth/auth_interceptor.dart';
@@ -88,6 +90,25 @@ Future<bool> onIosBackground(ServiceInstance service) async {
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
+
+  const defaultDsn =
+      'https://dd4d1111c317b961e3f1f6e80430ea9a@o4512067849945088.ingest.us.sentry.io/4512067856105472';
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: defaultDsn);
+      options.tracesSampleRate = 1.0;
+      options.enableFramesTracking = false;
+      options.enableAutoSessionTracking = false;
+    },
+  );
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    Sentry.captureException(error, stackTrace: stack, withScope: (scope) => scope.setTag('isolate', 'background'));
+    return true;
+  };
+  FlutterError.onError = (details) {
+    Sentry.captureException(details.exception, stackTrace: details.stack, withScope: (scope) => scope.setTag('isolate', 'background'));
+  };
 
   // Set up notifications for background updates
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -536,6 +557,89 @@ void onStart(ServiceInstance service) async {
       print('[Background] Failed to load last valid vitals from DB: $e');
     }
 
+    int consecutiveIngestFailures = 0;
+
+    Future<void> syncPendingVitals({
+      required BandVitalsApi api,
+      required VitalsDatabase db,
+      required int patientId,
+      required String deviceId,
+      required int phoneBattery,
+      required int battery,
+      required bool isConnected,
+      required bool isRemoved,
+    }) async {
+      try {
+        final uningested = await db.getUningestedVitals();
+        if (uningested.isEmpty) return;
+
+        // ignore: avoid_print
+        print('[Background] Found ${uningested.length} uningested vital records to sync');
+
+        final ids = <int>[];
+        final payloads = <Map<String, dynamic>>[];
+
+        for (final row in uningested) {
+          final id = row['_id'] as int?;
+          if (id != null) ids.add(id);
+
+          final ts = row['timestamp'] as int?;
+          final recordedAt = ts != null
+              ? DateTime.fromMillisecondsSinceEpoch(ts)
+              : DateTime.now();
+
+          payloads.add(BandVitalsApi.buildVitalPayload(
+            patientId: row['patient_id'] as int? ?? patientId,
+            deviceId: (row['device_id'] as String?)?.isNotEmpty == true
+                ? row['device_id'] as String
+                : deviceId,
+            hr: (row['hr'] as int?) ?? lastValidHr,
+            spo2: (row['spo2'] as int?) ?? lastValidSpo2,
+            tempC: (row['tempC'] as num?)?.toDouble() ?? lastValidTempC,
+            bpSys: (row['bpSys'] as int?) ?? lastValidBpSys,
+            bpDia: (row['bpDia'] as int?) ?? lastValidBpDia,
+            hrv: (row['hrv'] as int?) ?? lastValidHrv,
+            stress: (row['stress'] ?? lastValidStress).toString(),
+            steps: (row['steps'] as int?) ?? 0,
+            calories: (row['calories'] as num?)?.toDouble() ?? 0.0,
+            distanceKm: (row['distanceKm'] as num?)?.toDouble() ?? 0.0,
+            battery: (row['battery'] as int?) ?? battery,
+            phoneBattery: phoneBattery,
+            isConnected: isConnected,
+            isRemoved: (row['isRemoved'] == 1) || isRemoved,
+            recordedAt: recordedAt,
+          ));
+        }
+
+        final success = await api.bulkIngest(payloads);
+        if (success) {
+          await db.markMultipleAsIngested(ids);
+          consecutiveIngestFailures = 0;
+          // ignore: avoid_print
+          print('[Background] ✓ Synced & marked ${ids.length} vitals as ingested');
+        } else {
+          consecutiveIngestFailures++;
+          // ignore: avoid_print
+          print('[Background] ✗ Failed to bulk sync ${payloads.length} vitals (will retry)');
+          if (consecutiveIngestFailures == 3) {
+            Sentry.captureMessage(
+              'Cloud Ingestion Failing: 3 consecutive bulk-ingest failures for device $deviceId',
+              level: SentryLevel.warning,
+              withScope: (scope) {
+                scope.setTag('issue_type', 'bulk_ingest_failure');
+                scope.setTag('device_id', deviceId);
+                scope.setTag('patient_id', patientId.toString());
+              },
+            );
+          }
+        }
+      } catch (e, stackTrace) {
+        // ignore: avoid_print
+        print('[Background] Error during syncPendingVitals: $e');
+        Sentry.captureException(e, stackTrace: stackTrace);
+      }
+    }
+
     session = BandSessionService(
       patientId: profile.id,
       deviceId: deviceId,
@@ -546,6 +650,88 @@ void onStart(ServiceInstance service) async {
         weightKg: profile.weight ?? 70,
         stepLengthCm: ((profile.height ?? 170) * 0.415).toInt(),
       ),
+      onHistoryRecords: (records, cmd, isEnd) async {
+        final db = VitalsDatabase.instance;
+        for (final r in records) {
+          final minuteAlignedTs = DateTime(
+            r.timestamp.year,
+            r.timestamp.month,
+            r.timestamp.day,
+            r.timestamp.hour,
+            r.timestamp.minute,
+          ).millisecondsSinceEpoch;
+
+          final recordData = <String, dynamic>{
+            'timestamp': minuteAlignedTs,
+            'patient_id': profile.id,
+            'device_id': deviceId,
+            'isIngested': 0,
+          };
+
+          if (r is HistoryBpHrv) {
+            recordData['bpSys'] = r.systolic;
+            recordData['bpDia'] = r.diastolic;
+            recordData['hrv'] = r.hrv;
+            recordData['stress'] = r.stress.toString();
+            if (r.hr > 0) recordData['hr'] = r.hr;
+            if (r.systolic > 0) {
+              lastValidBpSys = r.systolic;
+              lastValidBpDia = r.diastolic;
+            }
+            if (r.hrv > 0) lastValidHrv = r.hrv;
+            if (r.stress > 0) lastValidStress = r.stress.toString();
+          } else if (r is HistorySpo2) {
+            recordData['spo2'] = r.spo2;
+            if (r.spo2 > 0) lastValidSpo2 = r.spo2;
+          } else if (r is HistoryHr) {
+            recordData['hr'] = r.hr;
+            if (r.hr > 0) lastValidHr = r.hr;
+          } else if (r is HistorySteps) {
+            recordData['steps'] = r.steps;
+            recordData['calories'] = r.calories;
+            recordData['distanceKm'] = r.distanceKm;
+            if (r.steps > 0) {
+              lastValidSteps = r.steps;
+              lastValidCalories = r.calories;
+              lastValidDistanceKm = r.distanceKm;
+            }
+          }
+
+          recordData['tempC'] = lastValidTempC;
+          recordData['battery'] = session?.currentState.battery ?? -1;
+
+          await db.upsertVital(recordData);
+        }
+
+        if (isEnd) {
+          final store = AuthTokenStore();
+          final repo = AuthRepository(
+              baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
+          final interceptor =
+              AuthInterceptor(store: store, repository: repo, onLogout: () {});
+          final api = BandVitalsApi(
+            baseUrl: 'https://vitalvue-api.genesysailabs.com',
+            authInterceptor: interceptor,
+          );
+
+          int phoneBattery = -1;
+          try {
+            phoneBattery = await Battery().batteryLevel;
+          } catch (_) {}
+
+          final currentState = session?.currentState ?? const BandState();
+          await syncPendingVitals(
+            api: api,
+            db: db,
+            patientId: profile.id,
+            deviceId: deviceId,
+            phoneBattery: phoneBattery,
+            battery: currentState.battery,
+            isConnected: currentState.connectionStatus == BleConnectionStatus.connected,
+            isRemoved: currentState.isRemoved,
+          );
+        }
+      },
       onIngest: (state) async {
         final store = AuthTokenStore();
         final repo = AuthRepository(
@@ -612,30 +798,18 @@ void onStart(ServiceInstance service) async {
           'isIngested': 0,
         };
 
-        final id = await db.insertVital(vitalData);
+        await db.insertVital(vitalData);
 
-        final success = await api.ingest(
+        await syncPendingVitals(
+          api: api,
+          db: db,
           patientId: profile.id,
           deviceId: deviceId,
-          hr: lastValidHr,
-          spo2: lastValidSpo2,
-          tempC: lastValidTempC,
-          bpSys: lastValidBpSys,
-          bpDia: lastValidBpDia,
-          hrv: lastValidHrv,
-          stress: lastValidStress,
-          steps: lastValidSteps,
-          calories: lastValidCalories,
-          distanceKm: lastValidDistanceKm,
-          battery: state.battery,
           phoneBattery: phoneBattery,
-          isRemoved: state.isRemoved,
+          battery: state.battery,
           isConnected: state.connectionStatus == BleConnectionStatus.connected,
+          isRemoved: state.isRemoved,
         );
-
-        if (success) {
-          await db.markAsIngested(id);
-        }
 
         await db.deleteOldVitals();
       },

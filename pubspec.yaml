@@ -47,6 +47,10 @@ dependencies:
   audioplayers: ^6.1.0
   battery_plus: ^6.1.0
 
+  # Crash Reporting & Performance Monitoring
+  sentry_flutter: ^9.30.0
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

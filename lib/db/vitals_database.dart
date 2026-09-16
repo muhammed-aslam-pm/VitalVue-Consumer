@@ -82,9 +82,42 @@ CREATE TABLE vitals (
       );
 
       if (existing.isNotEmpty) {
+        final existingRow = existing.first;
+        final updateMap = <String, dynamic>{};
+        mapped.forEach((key, value) {
+          if (value == null) return;
+          if (value is num && value <= 0) {
+            final oldVal = existingRow[key];
+            if (oldVal != null && oldVal is num && oldVal > 0) {
+              return; // Keep existing valid positive value
+            }
+          }
+          if (key == 'stress' && (value == '0' || value == 0)) {
+            final oldVal = existingRow['stress'];
+            if (oldVal != null && oldVal != '0' && oldVal != 0) {
+              return; // Keep existing valid stress value
+            }
+          }
+          updateMap[key] = value;
+        });
+
+        // Preserve isIngested if already ingested and no new vital value changed
+        if (existingRow['isIngested'] == 1 && !mapped.containsKey('forceUningested')) {
+          bool changed = false;
+          for (final k in ['hr', 'spo2', 'tempC', 'bpSys', 'bpDia', 'hrv']) {
+            if (updateMap.containsKey(k) && updateMap[k] != existingRow[k]) {
+              changed = true;
+              break;
+            }
+          }
+          if (!changed) {
+            updateMap['isIngested'] = 1;
+          }
+        }
+
         return await db.update(
           'vitals',
-          mapped,
+          updateMap,
           where: 'timestamp = ? AND device_id = ?',
           whereArgs: [timestamp, deviceId],
         );
@@ -134,6 +167,21 @@ CREATE TABLE vitals (
       where: '_id = ?',
       whereArgs: [id],
     );
+  }
+
+  Future<void> markMultipleAsIngested(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final db = await instance.database;
+    final batch = db.batch();
+    for (final id in ids) {
+      batch.update(
+        'vitals',
+        {'isIngested': 1},
+        where: '_id = ?',
+        whereArgs: [id],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   Future<int> getLastValidHr() async {
