@@ -477,6 +477,10 @@ void onStart(ServiceInstance service) async {
 
   service.on('stopService').listen((event) async {
     isManualDisconnect = true;
+    service.invoke('sync_status', {
+      'isSyncing': false,
+      'pending': 0,
+    });
     patientBandRemovalTimer?.cancel();
     await session?.disconnect();
     service.stopSelf();
@@ -487,6 +491,10 @@ void onStart(ServiceInstance service) async {
   // avoiding the double-click race on reconnect.
   service.on('disconnectDevice').listen((event) async {
     isManualDisconnect = true;
+    service.invoke('sync_status', {
+      'isSyncing': false,
+      'pending': 0,
+    });
     patientBandRemovalTimer?.cancel();
     await session?.disconnect();
     session = null;
@@ -557,6 +565,7 @@ void onStart(ServiceInstance service) async {
       print('[Background] Failed to load last valid vitals from DB: $e');
     }
 
+    bool isSyncing = false;
     int consecutiveIngestFailures = 0;
 
     Future<void> syncPendingVitals({
@@ -568,75 +577,135 @@ void onStart(ServiceInstance service) async {
       required int battery,
       required bool isConnected,
       required bool isRemoved,
+      bool isHistorySync = false,
     }) async {
-      try {
-        final uningested = await db.getUningestedVitals();
-        if (uningested.isEmpty) return;
-
+      if (isManualDisconnect) {
         // ignore: avoid_print
-        print('[Background] Found ${uningested.length} uningested vital records to sync');
+        print('[Background] Manual disconnect active, skipping bulk sync.');
+        return;
+      }
+      if (isSyncing) {
+        // ignore: avoid_print
+        print('[Background] syncPendingVitals already in progress, skipping overlapping run.');
+        return;
+      }
+      isSyncing = true;
+      bool broadcastedSync = false;
+      try {
+        final initialPending = await db.getUningestedCount();
+        if (initialPending == 0) return;
 
-        final ids = <int>[];
-        final payloads = <Map<String, dynamic>>[];
-
-        for (final row in uningested) {
-          final id = row['_id'] as int?;
-          if (id != null) ids.add(id);
-
-          final ts = row['timestamp'] as int?;
-          final recordedAt = ts != null
-              ? DateTime.fromMillisecondsSinceEpoch(ts)
-              : DateTime.now();
-
-          payloads.add(BandVitalsApi.buildVitalPayload(
-            patientId: row['patient_id'] as int? ?? patientId,
-            deviceId: (row['device_id'] as String?)?.isNotEmpty == true
-                ? row['device_id'] as String
-                : deviceId,
-            hr: (row['hr'] as int?) ?? lastValidHr,
-            spo2: (row['spo2'] as int?) ?? lastValidSpo2,
-            tempC: (row['tempC'] as num?)?.toDouble() ?? lastValidTempC,
-            bpSys: (row['bpSys'] as int?) ?? lastValidBpSys,
-            bpDia: (row['bpDia'] as int?) ?? lastValidBpDia,
-            hrv: (row['hrv'] as int?) ?? lastValidHrv,
-            stress: (row['stress'] ?? lastValidStress).toString(),
-            steps: (row['steps'] as int?) ?? 0,
-            calories: (row['calories'] as num?)?.toDouble() ?? 0.0,
-            distanceKm: (row['distanceKm'] as num?)?.toDouble() ?? 0.0,
-            battery: (row['battery'] as int?) ?? battery,
-            phoneBattery: phoneBattery,
-            isConnected: isConnected,
-            isRemoved: (row['isRemoved'] == 1) || isRemoved,
-            recordedAt: recordedAt,
-          ));
+        // If this is history sync or there are multiple backlog records, broadcast sync status to UI
+        if ((isHistorySync || initialPending > 1) && !isManualDisconnect) {
+          broadcastedSync = true;
+          service.invoke('sync_status', {
+            'isSyncing': true,
+            'pending': initialPending,
+          });
         }
 
-        final success = await api.bulkIngest(payloads);
-        if (success) {
-          await db.markMultipleAsIngested(ids);
-          consecutiveIngestFailures = 0;
+        while (true) {
+          if (isManualDisconnect) {
+            // ignore: avoid_print
+            print('[Background] Manual disconnect active, aborting bulk sync passes.');
+            break;
+          }
+          // Limit each sync pass to 100 items (4 batches of 25) so network calls stay quick
+          final uningested = await db.getUningestedVitals(limit: 100);
+          if (uningested.isEmpty) break;
+
           // ignore: avoid_print
-          print('[Background] ✓ Synced & marked ${ids.length} vitals as ingested');
-        } else {
-          consecutiveIngestFailures++;
-          // ignore: avoid_print
-          print('[Background] ✗ Failed to bulk sync ${payloads.length} vitals (will retry)');
-          if (consecutiveIngestFailures == 3) {
-            Sentry.captureMessage(
-              'Cloud Ingestion Failing: 3 consecutive bulk-ingest failures for device $deviceId',
-              level: SentryLevel.warning,
-              withScope: (scope) {
-                scope.setTag('issue_type', 'bulk_ingest_failure');
-                scope.setTag('device_id', deviceId);
-                scope.setTag('patient_id', patientId.toString());
-              },
-            );
+          print('[Background] Found ${uningested.length} uningested vital records to sync');
+
+          final ids = <int>[];
+          final payloads = <Map<String, dynamic>>[];
+
+          for (final row in uningested) {
+            final id = row['_id'] as int?;
+            if (id != null) ids.add(id);
+
+            final ts = row['timestamp'] as int?;
+            final recordedAt = ts != null
+                ? DateTime.fromMillisecondsSinceEpoch(ts)
+                : DateTime.now();
+
+            payloads.add(BandVitalsApi.buildVitalPayload(
+              patientId: row['patient_id'] as int? ?? patientId,
+              deviceId: (row['device_id'] as String?)?.isNotEmpty == true
+                  ? row['device_id'] as String
+                  : deviceId,
+              hr: (row['hr'] as int?) ?? lastValidHr,
+              spo2: (row['spo2'] as int?) ?? lastValidSpo2,
+              tempC: (row['tempC'] as num?)?.toDouble() ?? lastValidTempC,
+              bpSys: (row['bpSys'] as int?) ?? lastValidBpSys,
+              bpDia: (row['bpDia'] as int?) ?? lastValidBpDia,
+              hrv: (row['hrv'] as int?) ?? lastValidHrv,
+              stress: (row['stress'] ?? lastValidStress).toString(),
+              steps: (row['steps'] as int?) ?? 0,
+              calories: (row['calories'] as num?)?.toDouble() ?? 0.0,
+              distanceKm: (row['distanceKm'] as num?)?.toDouble() ?? 0.0,
+              battery: (row['battery'] as int?) ?? battery,
+              phoneBattery: phoneBattery,
+              isConnected: isConnected,
+              isRemoved: (row['isRemoved'] == 1) || isRemoved,
+              recordedAt: recordedAt,
+            ));
+          }
+
+          int syncedCount = 0;
+          final success = await api.bulkIngest(
+            payloads,
+            batchSize: 25,
+            onBatchSuccess: (startIndex, endIndex) async {
+              final batchIds = ids.sublist(startIndex, endIndex);
+              await db.markMultipleAsIngested(batchIds);
+              syncedCount += batchIds.length;
+              if (broadcastedSync && !isManualDisconnect) {
+                final remaining = await db.getUningestedCount();
+                service.invoke('sync_status', {
+                  'isSyncing': true,
+                  'pending': remaining,
+                });
+              }
+              // ignore: avoid_print
+              print('[Background] ✓ Immediately marked ${batchIds.length} vitals as ingested (progress: $syncedCount/${ids.length})');
+            },
+          );
+
+          if (success) {
+            consecutiveIngestFailures = 0;
+            // ignore: avoid_print
+            print('[Background] ✓ Synced & marked $syncedCount vitals as ingested');
+          } else {
+            consecutiveIngestFailures++;
+            // ignore: avoid_print
+            print('[Background] ✗ Bulk sync interrupted ($syncedCount/${payloads.length} succeeded, remainder will retry)');
+            if (consecutiveIngestFailures == 3) {
+              Sentry.captureMessage(
+                'Cloud Ingestion Failing: 3 consecutive bulk-ingest failures for device $deviceId',
+                level: SentryLevel.warning,
+                withScope: (scope) {
+                  scope.setTag('issue_type', 'bulk_ingest_failure');
+                  scope.setTag('device_id', deviceId);
+                  scope.setTag('patient_id', patientId.toString());
+                },
+              );
+            }
+            break;
           }
         }
       } catch (e, stackTrace) {
         // ignore: avoid_print
         print('[Background] Error during syncPendingVitals: $e');
         Sentry.captureException(e, stackTrace: stackTrace);
+      } finally {
+        isSyncing = false;
+        if (broadcastedSync || isManualDisconnect) {
+          service.invoke('sync_status', {
+            'isSyncing': false,
+            'pending': 0,
+          });
+        }
       }
     }
 
@@ -651,85 +720,116 @@ void onStart(ServiceInstance service) async {
         stepLengthCm: ((profile.height ?? 170) * 0.415).toInt(),
       ),
       onHistoryRecords: (records, cmd, isEnd) async {
-        final db = VitalsDatabase.instance;
-        for (final r in records) {
-          final minuteAlignedTs = DateTime(
-            r.timestamp.year,
-            r.timestamp.month,
-            r.timestamp.day,
-            r.timestamp.hour,
-            r.timestamp.minute,
-          ).millisecondsSinceEpoch;
+        try {
+          final db = VitalsDatabase.instance;
+          int deduplicatedCount = 0;
+          int queuedCount = 0;
 
-          final recordData = <String, dynamic>{
-            'timestamp': minuteAlignedTs,
-            'patient_id': profile.id,
-            'device_id': deviceId,
-            'isIngested': 0,
-          };
+          for (final r in records) {
+            final minuteAlignedTs = DateTime(
+              r.timestamp.year,
+              r.timestamp.month,
+              r.timestamp.day,
+              r.timestamp.hour,
+              r.timestamp.minute,
+            ).millisecondsSinceEpoch;
 
-          if (r is HistoryBpHrv) {
-            recordData['bpSys'] = r.systolic;
-            recordData['bpDia'] = r.diastolic;
-            recordData['hrv'] = r.hrv;
-            recordData['stress'] = r.stress.toString();
-            if (r.hr > 0) recordData['hr'] = r.hr;
-            if (r.systolic > 0) {
-              lastValidBpSys = r.systolic;
-              lastValidBpDia = r.diastolic;
+            // Check if this time window was already ingested live during active connection
+            final alreadyIngested = await db.hasIngestedVitalNear(
+              deviceId: deviceId,
+              timestamp: minuteAlignedTs,
+              windowMs: 90000, // ±1.5 min window
+            );
+
+            if (alreadyIngested) {
+              deduplicatedCount++;
+            } else {
+              queuedCount++;
             }
-            if (r.hrv > 0) lastValidHrv = r.hrv;
-            if (r.stress > 0) lastValidStress = r.stress.toString();
-          } else if (r is HistorySpo2) {
-            recordData['spo2'] = r.spo2;
-            if (r.spo2 > 0) lastValidSpo2 = r.spo2;
-          } else if (r is HistoryHr) {
-            recordData['hr'] = r.hr;
-            if (r.hr > 0) lastValidHr = r.hr;
-          } else if (r is HistorySteps) {
-            recordData['steps'] = r.steps;
-            recordData['calories'] = r.calories;
-            recordData['distanceKm'] = r.distanceKm;
-            if (r.steps > 0) {
-              lastValidSteps = r.steps;
-              lastValidCalories = r.calories;
-              lastValidDistanceKm = r.distanceKm;
+
+            final recordData = <String, dynamic>{
+              'timestamp': minuteAlignedTs,
+              'patient_id': profile.id,
+              'device_id': deviceId,
+              'isIngested': alreadyIngested ? 1 : 0,
+            };
+
+            if (r is HistoryBpHrv) {
+              recordData['bpSys'] = r.systolic;
+              recordData['bpDia'] = r.diastolic;
+              recordData['hrv'] = r.hrv;
+              recordData['stress'] = r.stress.toString();
+              if (r.hr > 0) recordData['hr'] = r.hr;
+              if (r.systolic > 0) {
+                lastValidBpSys = r.systolic;
+                lastValidBpDia = r.diastolic;
+              }
+              if (r.hrv > 0) lastValidHrv = r.hrv;
+              if (r.stress > 0) lastValidStress = r.stress.toString();
+            } else if (r is HistorySpo2) {
+              recordData['spo2'] = r.spo2;
+              if (r.spo2 > 0) lastValidSpo2 = r.spo2;
+            } else if (r is HistoryHr) {
+              recordData['hr'] = r.hr;
+              if (r.hr > 0) lastValidHr = r.hr;
+            } else if (r is HistorySteps) {
+              recordData['steps'] = r.steps;
+              recordData['calories'] = r.calories;
+              recordData['distanceKm'] = r.distanceKm;
+              if (r.steps > 0) {
+                lastValidSteps = r.steps;
+                lastValidCalories = r.calories;
+                lastValidDistanceKm = r.distanceKm;
+              }
+            }
+
+            recordData['tempC'] = lastValidTempC;
+            recordData['battery'] = session?.currentState.battery ?? -1;
+
+            try {
+              await db.upsertVital(recordData);
+            } catch (e) {
+              // ignore: avoid_print
+              print('[Background] Warning: failed to upsert vital record: $e');
             }
           }
 
-          recordData['tempC'] = lastValidTempC;
-          recordData['battery'] = session?.currentState.battery ?? -1;
+          // ignore: avoid_print
+          print('[Background] 📦 JBand history sync (cmd 0x${cmd.toRadixString(16)}): $queuedCount records queued for bulk ingest, $deduplicatedCount already covered by live ingest');
 
-          await db.upsertVital(recordData);
-        }
+          if (isEnd && !isManualDisconnect) {
+            final store = AuthTokenStore();
+            final repo = AuthRepository(
+                baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
+            final interceptor =
+                AuthInterceptor(store: store, repository: repo, onLogout: () {});
+            final api = BandVitalsApi(
+              baseUrl: 'https://vitalvue-api.genesysailabs.com',
+              authInterceptor: interceptor,
+            );
 
-        if (isEnd) {
-          final store = AuthTokenStore();
-          final repo = AuthRepository(
-              baseUrl: 'https://vitalvue-api.genesysailabs.com', store: store);
-          final interceptor =
-              AuthInterceptor(store: store, repository: repo, onLogout: () {});
-          final api = BandVitalsApi(
-            baseUrl: 'https://vitalvue-api.genesysailabs.com',
-            authInterceptor: interceptor,
-          );
+            int phoneBattery = -1;
+            try {
+              phoneBattery = await Battery().batteryLevel;
+            } catch (_) {}
 
-          int phoneBattery = -1;
-          try {
-            phoneBattery = await Battery().batteryLevel;
-          } catch (_) {}
-
-          final currentState = session?.currentState ?? const BandState();
-          await syncPendingVitals(
-            api: api,
-            db: db,
-            patientId: profile.id,
-            deviceId: deviceId,
-            phoneBattery: phoneBattery,
-            battery: currentState.battery,
-            isConnected: currentState.connectionStatus == BleConnectionStatus.connected,
-            isRemoved: currentState.isRemoved,
-          );
+            final currentState = session?.currentState ?? const BandState();
+            await syncPendingVitals(
+              api: api,
+              db: db,
+              patientId: profile.id,
+              deviceId: deviceId,
+              phoneBattery: phoneBattery,
+              battery: currentState.battery,
+              isConnected: currentState.connectionStatus == BleConnectionStatus.connected,
+              isRemoved: currentState.isRemoved,
+              isHistorySync: true,
+            );
+          }
+        } catch (e, stackTrace) {
+          // ignore: avoid_print
+          print('[Background] Error in onHistoryRecords: $e');
+          Sentry.captureException(e, stackTrace: stackTrace);
         }
       },
       onIngest: (state) async {
@@ -776,6 +876,37 @@ void onStart(ServiceInstance service) async {
         } catch (e) {
           // ignore: avoid_print
           print('[Background] Failed to get phone battery level: $e');
+        }
+
+        // On manual disconnect or disconnected state, only send a lightweight single disconnect ping.
+        // Do NOT insert uningested records into SQLite and do NOT drain historical backlog.
+        if (isManualDisconnect || state.connectionStatus == BleConnectionStatus.disconnected) {
+          // ignore: avoid_print
+          print('[Background] Band disconnected (manual=$isManualDisconnect). Sending single disconnect status to cloud.');
+          try {
+            await api.ingest(
+              patientId: profile.id,
+              deviceId: deviceId,
+              hr: lastValidHr,
+              spo2: lastValidSpo2,
+              tempC: lastValidTempC,
+              bpSys: lastValidBpSys,
+              bpDia: lastValidBpDia,
+              hrv: lastValidHrv,
+              stress: lastValidStress,
+              steps: lastValidSteps,
+              calories: lastValidCalories,
+              distanceKm: lastValidDistanceKm,
+              battery: state.battery,
+              phoneBattery: phoneBattery,
+              isConnected: false,
+              isRemoved: state.isRemoved,
+            );
+          } catch (e) {
+            // ignore: avoid_print
+            print('[Background] Failed to send disconnect ingest: $e');
+          }
+          return;
         }
         
         final vitalData = {

@@ -15,7 +15,7 @@ class BandVitalsApi {
   }) : _baseUrl = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/' {
     _dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 30),
       headers: {'Content-Type': 'application/json'},
     ));
     _dio.interceptors.add(LogInterceptor(
@@ -177,10 +177,13 @@ class BandVitalsApi {
   }
 
   /// Bulk ingest client — POST /api/v1/vitals/bulk-ingest
-  /// Takes a list of vital payloads and sends them in batches (default 50 items per batch).
+  /// Takes a list of vital payloads and sends them in batches (default 25 items per batch).
+  /// Optional [onBatchSuccess] is invoked immediately after each batch succeeds,
+  /// passing the sublist start and end indexes so caller can mark them as ingested right away.
   Future<bool> bulkIngest(
     List<Map<String, dynamic>> payloads, {
-    int batchSize = 50,
+    int batchSize = 25,
+    Future<void> Function(int startIndex, int endIndex)? onBatchSuccess,
   }) async {
     if (payloads.isEmpty) return true;
 
@@ -206,6 +209,17 @@ class BandVitalsApi {
           transaction.finish(status: const SpanStatus.internalError());
           return false;
         }
+
+        // Immediately notify caller that this batch succeeded
+        if (onBatchSuccess != null) {
+          try {
+            await onBatchSuccess(i, end);
+          } catch (e) {
+            // ignore: avoid_print
+            print('[Cloud] Warning: onBatchSuccess callback error: $e');
+          }
+        }
+
         // ignore: avoid_print
         print('[Cloud] ✓ Bulk ingest sent (Status: ${resp.statusCode}) Batch ${i ~/ batchSize + 1} (${batch.length} items)');
       } on DioException catch (e, stackTrace) {
@@ -239,7 +253,7 @@ class BandVitalsApi {
     // ignore: avoid_print
     print('[Cloud] Attempting to change device to: $newDeviceId');
     try {
-      final resp = await _dio.put(url, data: {
+      final resp = await _dio.patch(url, data: {
         'new_device_id': newDeviceId,
       });
       return resp.statusCode != null && resp.statusCode! < 300;

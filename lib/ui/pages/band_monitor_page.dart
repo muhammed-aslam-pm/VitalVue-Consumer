@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -176,6 +177,12 @@ class _BandMonitorPageState extends State<BandMonitorPage>
                       slivers: [
                         SliverToBoxAdapter(
                           child: _buildAppBar(context, bandState, profile),
+                        ),
+                        SliverToBoxAdapter(
+                          child: _SyncStatusBanner(
+                            isSyncing: bandState.isSyncing,
+                            remaining: bandState.syncRemaining,
+                          ),
                         ),
                         SliverToBoxAdapter(
                           child: _buildConnectionBanner(context, bandState),
@@ -817,5 +824,219 @@ class _InfoBanner extends StatelessWidget {
         ],
       ),
     ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, end: 0);
+  }
+}
+
+
+// ── Sync Status Banner ───────────────────────────────────────────────────────
+
+class _SyncStatusBanner extends StatefulWidget {
+  const _SyncStatusBanner({
+    required this.isSyncing,
+    required this.remaining,
+  });
+
+  final bool isSyncing;
+  final int remaining;
+
+  @override
+  State<_SyncStatusBanner> createState() => _SyncStatusBannerState();
+}
+
+class _SyncStatusBannerState extends State<_SyncStatusBanner> {
+  bool _visible = false;
+  bool _completed = false;
+  int _displayRemaining = 0;
+  Timer? _dismissTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isSyncing) {
+      _visible = true;
+      _displayRemaining = widget.remaining;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _SyncStatusBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isSyncing) {
+      _dismissTimer?.cancel();
+      setState(() {
+        _visible = true;
+        _completed = false;
+        _displayRemaining = widget.remaining;
+      });
+    } else if (oldWidget.isSyncing && !widget.isSyncing) {
+      // Sync just completed! Show success briefly, then dismiss smoothly
+      setState(() {
+        _completed = true;
+      });
+      _dismissTimer?.cancel();
+      _dismissTimer = Timer(const Duration(milliseconds: 1400), () {
+        if (mounted) {
+          setState(() {
+            _visible = false;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOutCubic,
+      child: _visible
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: _completed
+                      ? const Color(0xFF43A047).withValues(alpha: 0.14)
+                      : const Color(0xFF00BFA5).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _completed
+                        ? const Color(0xFF43A047).withValues(alpha: 0.45)
+                        : const Color(0xFF00BFA5).withValues(alpha: 0.35),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_completed
+                              ? const Color(0xFF43A047)
+                              : const Color(0xFF00BFA5))
+                          .withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    if (!_completed)
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00BFA5).withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.sync_rounded,
+                          color: Color(0xFF00BFA5),
+                          size: 18,
+                        ),
+                      )
+                          .animate(onPlay: (c) => c.repeat())
+                          .rotate(duration: 1800.ms, curve: Curves.linear)
+                    else
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF43A047).withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          color: Color(0xFF43A047),
+                          size: 18,
+                        ),
+                      )
+                          .animate()
+                          .scale(duration: 250.ms, curve: Curves.easeOutBack),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _completed
+                                ? 'Backlog Vitals Synced'
+                                : 'Syncing Vitals to Cloud',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _completed
+                                  ? const Color(0xFF43A047)
+                                  : const Color(0xFF00BFA5),
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _completed
+                                ? 'All historical records uploaded successfully'
+                                : (_displayRemaining > 0
+                                    ? ' records queued for cloud ingest…'
+                                    : 'Uploading recorded vitals to cloud…'),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!_completed)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00BFA5).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF00BFA5),
+                              ),
+                            )
+                                .animate(onPlay: (c) => c.repeat(reverse: true))
+                                .scale(
+                                  begin: const Offset(0.7, 0.7),
+                                  end: const Offset(1.2, 1.2),
+                                  duration: 600.ms,
+                                ),
+                            const SizedBox(width: 5),
+                            const Text(
+                              'SYNCING',
+                              style: TextStyle(
+                                color: Color(0xFF00BFA5),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            )
+              .animate()
+              .fadeIn(duration: 250.ms)
+              .slideY(begin: -0.15, end: 0, duration: 250.ms)
+          : const SizedBox.shrink(),
+    );
   }
 }

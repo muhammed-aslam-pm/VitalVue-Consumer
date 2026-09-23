@@ -398,12 +398,10 @@ class BandSessionService {
       _lastKickTime = now;
       _lastSpo2KickTime = now;
       _write('GetHistorySpo2', _codec.getHistorySpo2());
-    }
-    if (triggerBp) {
+    } else if (triggerBp) {
       _lastBpKickTime = now;
       _write('GetHistoryBP', _codec.getBpHrvData());
-    }
-    if (triggerHr) {
+    } else if (triggerHr) {
       _lastHrKickTime = now;
       _write('GetHistoryHR', _codec.getHistoryHeartRate());
     }
