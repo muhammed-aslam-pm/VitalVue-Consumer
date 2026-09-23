@@ -1,3 +1,4 @@
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
@@ -251,17 +252,24 @@ CREATE TABLE vitals (
 
   Future<void> markMultipleAsIngested(List<int> ids) async {
     if (ids.isEmpty) return;
-    final db = await instance.database;
-    final batch = db.batch();
-    for (final id in ids) {
-      batch.update(
-        'vitals',
-        {'isIngested': 1},
-        where: '_id = ?',
-        whereArgs: [id],
-      );
+    try {
+      final db = await instance.database;
+      final batch = db.batch();
+      for (final id in ids) {
+        batch.update(
+          'vitals',
+          {'isIngested': 1},
+          where: '_id = ?',
+          whereArgs: [id],
+        );
+      }
+      await batch.commit(noResult: true);
+    } catch (e, stackTrace) {
+      Sentry.captureException(e, stackTrace: stackTrace, withScope: (scope) {
+        scope.setContexts('Database', {'action': 'markMultipleAsIngested', 'ids_count': ids.length});
+      });
+      rethrow;
     }
-    await batch.commit(noResult: true);
   }
 
   Future<int> getLastValidHr() async {

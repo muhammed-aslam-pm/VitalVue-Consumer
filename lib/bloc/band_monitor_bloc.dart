@@ -79,8 +79,24 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
       }
     });
     on<_SyncStatusUpdated>((event, emit) {
+      final wasSyncing = _isSyncing;
       _isSyncing = event.isSyncing;
       _syncRemaining = event.syncRemaining;
+
+      if (_isSyncing && !wasSyncing) {
+        Sentry.addBreadcrumb(Breadcrumb(
+          message: 'UI Sync Status: Started bulk sync (${event.syncRemaining} records pending)',
+          category: 'ui.sync',
+          level: SentryLevel.info,
+          data: {'pending': event.syncRemaining},
+        ));
+      } else if (!_isSyncing && wasSyncing) {
+        Sentry.addBreadcrumb(Breadcrumb(
+          message: 'UI Sync Status: Bulk sync completed or idle',
+          category: 'ui.sync',
+          level: SentryLevel.info,
+        ));
+      }
 
       if (state is BandConnectedState) {
         emit((state as BandConnectedState).copyWith(
@@ -242,8 +258,12 @@ class BandMonitorBloc extends Bloc<BandMonitorEvent, BandMonitorState> {
     _scanSub = null;
     await BandBleClient.stopScan();
 
+    Sentry.configureScope((scope) {
+      scope.setTag('ble_remote_id', event.device.remoteId.str);
+      scope.setTag('ble_name', event.device.platformName);
+    });
     Sentry.addBreadcrumb(Breadcrumb(
-      message: 'Connecting to band ${event.device.remoteId.str}',
+      message: 'Connecting to band ${event.device.remoteId.str} (${event.device.platformName})',
       category: 'ble',
     ));
     emit(BandConnectingState(event.device.platformName, isSyncing: _isSyncing, syncRemaining: _syncRemaining));

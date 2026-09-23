@@ -491,6 +491,11 @@ void onStart(ServiceInstance service) async {
   // avoiding the double-click race on reconnect.
   service.on('disconnectDevice').listen((event) async {
     isManualDisconnect = true;
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'Manual disconnect requested from UI',
+      category: 'ble.connection',
+      level: SentryLevel.info,
+    ));
     service.invoke('sync_status', {
       'isSyncing': false,
       'pending': 0,
@@ -524,6 +529,17 @@ void onStart(ServiceInstance service) async {
     final remoteIdStr = event['remote_id'] as String;
     final deviceId = event['device_id'] as String;
 
+    Sentry.configureScope((scope) {
+      scope.setTag('device_id', deviceId);
+      scope.setTag('remote_id', remoteIdStr);
+    });
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'connectDevice requested for $deviceId ($remoteIdStr)',
+      category: 'ble.connection',
+      data: {'device_id': deviceId, 'remote_id': remoteIdStr},
+      level: SentryLevel.info,
+    ));
+
     // Save to preferences so we can auto-reconnect on restart
     await BackgroundPreferences.saveDevice(deviceId, remoteIdStr, deviceId);
 
@@ -532,6 +548,12 @@ void onStart(ServiceInstance service) async {
 
     final profile = await BackgroundPreferences.getProfile();
     if (profile == null) return;
+
+    Sentry.configureScope((scope) {
+      scope.setUser(SentryUser(id: profile.id.toString(), username: profile.fullName));
+      scope.setTag('patient_id', profile.id.toString());
+      scope.setTag('role', 'patient');
+    });
 
     final device = BluetoothDevice.fromId(remoteIdStr);
 
@@ -594,6 +616,21 @@ void onStart(ServiceInstance service) async {
       try {
         final initialPending = await db.getUningestedCount();
         if (initialPending == 0) return;
+
+        Sentry.addBreadcrumb(Breadcrumb(
+          message: 'Starting bulk sync: $initialPending pending records (historySync=$isHistorySync)',
+          category: 'sync.bulk',
+          data: {
+            'pending_count': initialPending,
+            'is_history_sync': isHistorySync,
+            'device_id': deviceId,
+            'patient_id': patientId,
+          },
+          level: SentryLevel.info,
+        ));
+
+        int totalBatches = 0;
+        int totalIngested = 0;
 
         // If this is history sync or there are multiple backlog records, broadcast sync status to UI
         if ((isHistorySync || initialPending > 1) && !isManualDisconnect) {
@@ -660,6 +697,8 @@ void onStart(ServiceInstance service) async {
               final batchIds = ids.sublist(startIndex, endIndex);
               await db.markMultipleAsIngested(batchIds);
               syncedCount += batchIds.length;
+              totalIngested += batchIds.length;
+              totalBatches++;
               if (broadcastedSync && !isManualDisconnect) {
                 final remaining = await db.getUningestedCount();
                 service.invoke('sync_status', {
@@ -678,6 +717,17 @@ void onStart(ServiceInstance service) async {
             print('[Background] ✓ Synced & marked $syncedCount vitals as ingested');
           } else {
             consecutiveIngestFailures++;
+            Sentry.addBreadcrumb(Breadcrumb(
+              message: 'Bulk sync batch failed (consecutive failures: $consecutiveIngestFailures)',
+              category: 'sync.bulk',
+              level: SentryLevel.warning,
+              data: {
+                'consecutive_failures': consecutiveIngestFailures,
+                'synced_in_pass': syncedCount,
+                'attempted_pass_size': payloads.length,
+              },
+            ));
+            consecutiveIngestFailures++;
             // ignore: avoid_print
             print('[Background] ✗ Bulk sync interrupted ($syncedCount/${payloads.length} succeeded, remainder will retry)');
             if (consecutiveIngestFailures == 3) {
@@ -693,6 +743,19 @@ void onStart(ServiceInstance service) async {
             }
             break;
           }
+        }
+
+        if (totalIngested > 0) {
+          Sentry.addBreadcrumb(Breadcrumb(
+            message: 'Bulk sync completed: successfully ingested $totalIngested vitals in $totalBatches batches',
+            category: 'sync.bulk',
+            level: SentryLevel.info,
+            data: {
+              'total_ingested': totalIngested,
+              'total_batches': totalBatches,
+              'device_id': deviceId,
+            },
+          ));
         }
       } catch (e, stackTrace) {
         // ignore: avoid_print
@@ -794,6 +857,19 @@ void onStart(ServiceInstance service) async {
             }
           }
 
+          Sentry.addBreadcrumb(Breadcrumb(
+            message: 'JBand history synced: $queuedCount queued, $deduplicatedCount deduplicated (cmd: 0x${cmd.toRadixString(16)})',
+            category: 'sync.history',
+            data: {
+              'cmd': '0x${cmd.toRadixString(16)}',
+              'queued_count': queuedCount,
+              'deduplicated_count': deduplicatedCount,
+              'is_end': isEnd,
+              'device_id': deviceId,
+            },
+            level: SentryLevel.info,
+          ));
+
           // ignore: avoid_print
           print('[Background] 📦 JBand history sync (cmd 0x${cmd.toRadixString(16)}): $queuedCount records queued for bulk ingest, $deduplicatedCount already covered by live ingest');
 
@@ -884,7 +960,7 @@ void onStart(ServiceInstance service) async {
           // ignore: avoid_print
           print('[Background] Band disconnected (manual=$isManualDisconnect). Sending single disconnect status to cloud.');
           try {
-            await api.ingest(
+            final ok = await api.ingest(
               patientId: profile.id,
               deviceId: deviceId,
               hr: lastValidHr,
@@ -902,9 +978,19 @@ void onStart(ServiceInstance service) async {
               isConnected: false,
               isRemoved: state.isRemoved,
             );
-          } catch (e) {
+            Sentry.addBreadcrumb(Breadcrumb(
+              message: 'Disconnect ingest sent: success=$ok',
+              category: 'cloud.ingest',
+              data: {'is_manual': isManualDisconnect, 'success': ok},
+              level: ok ? SentryLevel.info : SentryLevel.warning,
+            ));
+          } catch (e, stackTrace) {
             // ignore: avoid_print
             print('[Background] Failed to send disconnect ingest: $e');
+            Sentry.captureException(e, stackTrace: stackTrace, withScope: (scope) {
+              scope.setTag('action', 'disconnect_ingest');
+              scope.setTag('device_id', deviceId);
+            });
           }
           return;
         }
@@ -1130,10 +1216,27 @@ void onStart(ServiceInstance service) async {
           if (success) {
             // ignore: avoid_print
             print('[Background] Successfully registered device $deviceId to patient');
+            Sentry.addBreadcrumb(Breadcrumb(
+              message: 'Device $deviceId successfully registered to patient in backend',
+              category: 'cloud.device',
+              level: SentryLevel.info,
+              data: {'device_id': deviceId, 'patient_id': profile.id},
+            ));
+          } else {
+            Sentry.addBreadcrumb(Breadcrumb(
+              message: 'Device registration returned non-success for $deviceId',
+              category: 'cloud.device',
+              level: SentryLevel.warning,
+              data: {'device_id': deviceId, 'patient_id': profile.id},
+            ));
           }
-        }).catchError((e) {
+        }).catchError((e, stackTrace) {
           // ignore: avoid_print
           print('[Background] Error calling changeDevice: $e');
+          Sentry.captureException(e, stackTrace: stackTrace, withScope: (scope) {
+            scope.setTag('action', 'change_device');
+            scope.setTag('device_id', deviceId);
+          });
         });
       } catch (_) {}
     }
